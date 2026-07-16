@@ -12,10 +12,14 @@ do projeto). Use o script gerar_senha.py para criar o hash de uma senha nova.
 """
 
 import hashlib
+import os
 import pandas as pd
 import streamlit as st
 
 SAL_PROJETO = "tmb-logistica-bi"  # trocar por algo proprio do seu projeto
+
+# logo_tmb.png fica na mesma pasta deste arquivo (auth.py)
+CAMINHO_LOGO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo_tmb.png")
 
 
 def hash_senha(senha: str) -> str:
@@ -40,23 +44,27 @@ def verificar_login(usuario: str, senha: str, usuarios: pd.DataFrame):
 
 def tela_login(usuarios: pd.DataFrame):
     """Mostra o formulario de login. Preenche st.session_state quando ok."""
-    st.markdown(
-        """
-        <div style="text-align:center; padding-top: 40px;">
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    from estilo import aplicar_estilo
+    aplicar_estilo()
 
-    col1, col2, col3 = st.columns([1, 1.2, 1])
+    st.markdown("<div style='padding-top: 4vh;'></div>", unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([1, 1.15, 1])
     with col2:
-        st.image("logo_tmb.png", use_container_width=True)
-        st.markdown("### Acesso ao Portal BI")
+        st.markdown('<div class="login-card">', unsafe_allow_html=True)
+        st.image(CAMINHO_LOGO, use_container_width=True)
+        st.markdown(
+            "<h3 style='color:#1E3056;margin-top:0.8rem;margin-bottom:0.2rem;'>Portal BI de Entregas</h3>"
+            "<p style='color:#64748B;font-size:0.9rem;margin-bottom:1.2rem;'>Entre com seu usuário e senha para continuar</p>",
+            unsafe_allow_html=True,
+        )
 
         with st.form("form_login"):
             usuario = st.text_input("Usuário")
             senha = st.text_input("Senha", type="password")
             entrar = st.form_submit_button("Entrar", use_container_width=True)
+
+        st.markdown('</div>', unsafe_allow_html=True)
 
         if entrar:
             linha = verificar_login(usuario.strip(), senha, usuarios)

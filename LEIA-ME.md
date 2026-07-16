@@ -6,14 +6,25 @@
 portal/
 ├── app.py                  -> tela principal do portal
 ├── auth.py                 -> controla login e permissões
+├── estilo.py                -> visual do portal (cores, cards, tipografia)
 ├── limpeza.py               -> trata a planilha (mesmo do e-mail diário)
 ├── gerar_senha.py            -> gera o hash de uma senha nova
 ├── usuarios.csv              -> cadastro de logins (usuário/senha/perfil)
 ├── requirements.txt          -> lista de bibliotecas necessárias
 ├── logo_tmb.png               -> logo usada no portal
+├── assets/icons/               -> ícones usados nos cards de indicador
 ├── .streamlit/config.toml      -> cores do portal (tema TMB)
 └── dados/entregas_relatorio.csv -> planilha usada pelo portal (trocar quando tiver dados novos)
 ```
+
+## Sobre o visual (v2)
+
+O portal foi redesenhado com cards de indicador, gráficos com mais acabamento
+(barra de atrasos + rosca de situação) e uma tabela de dados interativa no
+lugar da lista de cards expansíveis. Também tem um **simulador de tolerância**
+na barra lateral: um controle deslizante que recalcula, em tempo real, quantas
+entregas ficariam atrasadas se a empresa desse alguns dias a mais de prazo —
+útil para testar cenários sem mexer nos dados reais.
 
 ## Antes de publicar
 
