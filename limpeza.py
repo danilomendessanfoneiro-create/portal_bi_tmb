@@ -69,6 +69,11 @@ def carregar_dados_brutos(caminho_arquivo: str) -> pd.DataFrame:
         sep=";",
         encoding="latin1",
         dtype=str,          # le tudo como texto; convertemos os tipos depois
+        index_col=False,    # evita que a 1a coluna vire indice quando a
+                             # planilha tem campos no formato ="valor" (o
+                             # exportador do sistema usa isso para o Excel
+                             # nao estragar numeros grandes) - sem isso, o
+                             # pandas desloca todas as colunas em 1 posicao
     )
     return df
 
@@ -122,7 +127,10 @@ def tratar_tipos(df: pd.DataFrame) -> pd.DataFrame:
         df["valor_total"] = _parse_valor(df["valor_total"])
 
     if "qtde_volumes" in df.columns:
-        df["qtde_volumes"] = pd.to_numeric(df["qtde_volumes"], errors="coerce")
+        df["qtde_volumes"] = pd.to_numeric(
+            df["qtde_volumes"].astype(str).str.replace(",", ".", regex=False),
+            errors="coerce",
+        )
 
     # texto: tira espacos extras e padroniza vazio
     for col in ["cliente", "filial", "status", "cidade_entrega", "uf_entrega"]:
