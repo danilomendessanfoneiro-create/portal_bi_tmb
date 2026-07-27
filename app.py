@@ -1,10 +1,20 @@
 """
 app.py
 -------
-Portal BI de Entregas - TMB Logistica (v2 - visual redesenhado).
+Portal BI de Entregas - TMB Logistica (v3).
+
+Novidades desta versao:
+- Horario "Atualizado em" e o calculo de "hoje" usam o fuso de Brasilia;
+- Filtro de periodo (por prazo considerado) na barra lateral;
+- Os graficos funcionam como filtro: clicar numa barra ou fatia filtra a
+  tabela de entregas abaixo;
+- O detalhamento de cada entrega (drill-through) ganhou mais campos:
+  data de cadastro, motorista, remetente e peso.
 """
 
 import os
+from zoneinfo import ZoneInfo
+
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -19,6 +29,14 @@ CAMINHO_DADOS = os.path.join(BASE_DIR, "dados", "entregas_relatorio.csv")
 CAMINHO_USUARIOS = os.path.join(BASE_DIR, "usuarios.csv")
 CAMINHO_LOGO = os.path.join(BASE_DIR, "logo_tmb.png")
 
+FUSO_BR = ZoneInfo("America/Sao_Paulo")
+
+
+def agora_br() -> pd.Timestamp:
+    """Data/hora atual no fuso de Brasilia (com fuso horario)."""
+    return pd.Timestamp.now(tz=FUSO_BR)
+
+
 st.set_page_config(page_title="Portal BI - TMB Logística", page_icon=CAMINHO_LOGO, layout="wide")
 
 exigir_login(CAMINHO_USUARIOS)
@@ -28,14 +46,19 @@ perfil = st.session_state["perfil"]
 filial_usuario = st.session_state["filial"]
 nome_exibicao = st.session_state["nome_exibicao"]
 
+# "Hoje" para todos os calculos de atraso, sempre baseado no fuso de Brasilia
+# (sem fuso, so a data - para comparar com as colunas de data da planilha,
+# que nao tem fuso).
+hoje = pd.Timestamp(agora_br().date())
+
 
 @st.cache_data(ttl=600)
-def carregar_dados():
-    return processar_planilha(CAMINHO_DADOS)
+def carregar_dados(data_ref):
+    return processar_planilha(CAMINHO_DADOS, data_referencia=data_ref)
 
 
 try:
-    df = carregar_dados()
+    df = carregar_dados(hoje.date())
 except FileNotFoundError:
     st.error(f"Arquivo de dados não encontrado em `{CAMINHO_DADOS}`. Atualize a planilha nessa pasta do repositório.")
     st.stop()
@@ -44,7 +67,7 @@ if perfil != "admin":
     df = df[df["filial"] == filial_usuario]
 
 # ---------------------------------------------------------------------------
-# Sidebar: marca, filtros e simulador
+# Sidebar: marca, filtros, periodo e simulador
 # ---------------------------------------------------------------------------
 with st.sidebar:
     st.image(CAMINHO_LOGO, use_container_width=True)
@@ -72,6 +95,21 @@ with st.sidebar:
     situacao = st.selectbox("Situação", ["Todas", "Atrasadas", "Vencendo hoje", "Em dia"])
 
     st.markdown("<hr>", unsafe_allow_html=True)
+    st.markdown("**Período**")
+    datas_validas = df["prazo_considerado"].dropna()
+    filtro_periodo = None
+    if not datas_validas.empty:
+        data_min = datas_validas.min().date()
+        data_max = datas_validas.max().date()
+        filtro_periodo = st.date_input(
+            "Prazo considerado entre",
+            value=(data_min, data_max),
+            min_value=data_min,
+            max_value=data_max,
+            help="Filtra pela data de prazo considerada (o maior valor entre Dt. Prazo Atual e Dt. Agendamento).",
+        )
+
+    st.markdown("<hr>", unsafe_allow_html=True)
     st.markdown("**Simulador de prazo**")
     tolerancia = st.slider(
         "Tolerância extra (dias)", min_value=0, max_value=15, value=0,
@@ -79,20 +117,26 @@ with st.sidebar:
     )
 
     st.markdown("<hr>", unsafe_allow_html=True)
+    if st.button("Limpar seleção dos gráficos", use_container_width=True):
+        for chave in ["grafico_barras", "grafico_situacao"]:
+            st.session_state.pop(chave, None)
+        st.rerun()
+
+    st.markdown("<hr>", unsafe_allow_html=True)
     if st.button("Sair", use_container_width=True):
         logout()
 
 # ---------------------------------------------------------------------------
-# Simulador: recalcula atraso com a tolerancia escolhida
+# Simulador: recalcula atraso com a tolerancia escolhida (sempre com o "hoje"
+# de Brasilia calculado acima)
 # ---------------------------------------------------------------------------
-hoje = pd.Timestamp(pd.Timestamp.now().date())
 limite = hoje - pd.Timedelta(days=tolerancia)
 elegivel = ~df["cancelada"] & ~df["entregue"] & df["prazo_considerado"].notna()
 df["atrasado"] = elegivel & (df["prazo_considerado"] < limite)
 df["dias_atraso"] = np.where(df["atrasado"], (hoje - df["prazo_considerado"]).dt.days, 0)
 
 # ---------------------------------------------------------------------------
-# Aplica filtros
+# Aplica filtros da barra lateral
 # ---------------------------------------------------------------------------
 df_filtrado = df.copy()
 if filtro_filial:
@@ -113,6 +157,12 @@ if busca:
         df_filtrado["nota_fiscal"].astype(str).str.lower().str.contains(b)
         | df_filtrado["cliente"].astype(str).str.lower().str.contains(b)
     ]
+if isinstance(filtro_periodo, tuple) and len(filtro_periodo) == 2:
+    ini, fim = filtro_periodo
+    df_filtrado = df_filtrado[
+        df_filtrado["prazo_considerado"].dt.date.between(ini, fim)
+        | df_filtrado["prazo_considerado"].isna()
+    ]
 
 # ---------------------------------------------------------------------------
 # Cabecalho
@@ -125,7 +175,7 @@ with col_titulo:
 with col_data:
     st.markdown(
         f"<div style='text-align:right;color:#64748B;font-size:0.85rem;padding-top:0.6rem;'>"
-        f"Atualizado em<br><b style='color:#1E3056;'>{pd.Timestamp.now():%d/%m/%Y às %H:%M}</b></div>",
+        f"Atualizado em (horário de Brasília)<br><b style='color:#1E3056;'>{agora_br():%d/%m/%Y às %H:%M}</b></div>",
         unsafe_allow_html=True,
     )
 
@@ -142,6 +192,8 @@ pct_atraso = (total_atrasadas / total_entregas * 100) if total_entregas else 0
 
 
 def fmt_moeda(v):
+    if pd.isna(v):
+        return "-"
     return f"R$ {v:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
 
 
@@ -159,15 +211,17 @@ with k4:
 st.markdown("<div style='height:1rem;'></div>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# Graficos
+# Graficos (funcionam tambem como filtro da tabela abaixo)
 # ---------------------------------------------------------------------------
+coluna_grafico1 = "filial" if perfil == "admin" else "cliente"
+
 col_esq, col_dir = st.columns([1.3, 1])
 
 with col_esq:
     st.markdown('<div class="section-card">', unsafe_allow_html=True)
     if perfil == "admin":
         st.markdown('<div class="section-title">Entregas atrasadas por filial</div>', unsafe_allow_html=True)
-        st.markdown('<div class="section-sub">Quanto mais escura a barra, maior a concentração de atrasos</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-sub">Clique numa barra para filtrar a tabela abaixo só por ela</div>', unsafe_allow_html=True)
         agrupado = (
             df_filtrado[df_filtrado["atrasado"]]
             .groupby("filial").size().reset_index(name="atrasadas")
@@ -175,7 +229,7 @@ with col_esq:
         )
     else:
         st.markdown('<div class="section-title">Entregas atrasadas por cliente</div>', unsafe_allow_html=True)
-        st.markdown('<div class="section-sub">Clientes com mais notas fiscais em atraso</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-sub">Clique numa barra para filtrar a tabela abaixo só por ela</div>', unsafe_allow_html=True)
         agrupado = (
             df_filtrado[df_filtrado["atrasado"]]
             .groupby("cliente").size().reset_index(name="atrasadas")
@@ -184,6 +238,7 @@ with col_esq:
         )
         agrupado = agrupado.rename(columns={"cliente": "filial"})
 
+    filial_clicada = None
     if agrupado.empty:
         st.info("Nenhuma entrega atrasada para os filtros selecionados.")
     else:
@@ -202,15 +257,21 @@ with col_esq:
             font=dict(family="Inter, sans-serif", color="#1E3056", size=12),
             xaxis=dict(showgrid=True, gridcolor="#EEF1F6", zeroline=False),
             yaxis=dict(showgrid=False),
-            showlegend=False,
+            showlegend=False, clickmode="event+select",
         )
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        evento_bar = st.plotly_chart(
+            fig, use_container_width=True, config={"displayModeBar": False},
+            on_select="rerun", selection_mode="points", key="grafico_barras",
+        )
+        pontos = evento_bar.selection.points if evento_bar and evento_bar.selection else []
+        if pontos:
+            filial_clicada = pontos[0].get("y")
     st.markdown('</div>', unsafe_allow_html=True)
 
 with col_dir:
     st.markdown('<div class="section-card">', unsafe_allow_html=True)
     st.markdown('<div class="section-title">Distribuição por situação</div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-sub">Do total filtrado, o que está em cada status</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-sub">Clique numa fatia para filtrar a tabela abaixo</div>', unsafe_allow_html=True)
 
     n_em_dia = total_entregas - total_atrasadas - total_vencendo
     dados_pie = pd.DataFrame({
@@ -219,6 +280,7 @@ with col_dir:
     })
     cores_pie = {"Atrasadas": "#C0392B", "Vencendo hoje": "#F6A532", "Em dia": "#1E8A5F"}
 
+    situacao_clicada = None
     if total_entregas == 0:
         st.info("Sem dados para os filtros selecionados.")
     else:
@@ -235,18 +297,54 @@ with col_dir:
             legend=dict(orientation="h", yanchor="bottom", y=-0.15, x=0.5, xanchor="center"),
             annotations=[dict(text=f"<b>{total_entregas}</b><br><span style='font-size:11px;color:#64748B'>entregas</span>",
                                x=0.5, y=0.5, showarrow=False, font=dict(size=20, color="#1E3056", family="Manrope, sans-serif"))],
+            clickmode="event+select",
         )
-        st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
+        evento_pie = st.plotly_chart(
+            fig2, use_container_width=True, config={"displayModeBar": False},
+            on_select="rerun", selection_mode="points", key="grafico_situacao",
+        )
+        pontos_pie = evento_pie.selection.points if evento_pie and evento_pie.selection else []
+        if pontos_pie:
+            situacao_clicada = pontos_pie[0].get("label")
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------------------------------------------------------------------
-# Tabela de dados + detalhamento
+# Aplica o filtro vindo dos graficos (cross-filter) sobre a base da tabela
+# ---------------------------------------------------------------------------
+df_tabela_base = df_filtrado.copy()
+filtros_grafico_ativos = []
+
+if filial_clicada:
+    df_tabela_base = df_tabela_base[df_tabela_base[coluna_grafico1] == filial_clicada]
+    rotulo = "Filial" if perfil == "admin" else "Cliente"
+    filtros_grafico_ativos.append(f"{rotulo}: <b>{filial_clicada}</b>")
+
+if situacao_clicada:
+    if situacao_clicada == "Atrasadas":
+        df_tabela_base = df_tabela_base[df_tabela_base["atrasado"]]
+    elif situacao_clicada == "Vencendo hoje":
+        df_tabela_base = df_tabela_base[df_tabela_base["vence_hoje"]]
+    elif situacao_clicada == "Em dia":
+        df_tabela_base = df_tabela_base[~df_tabela_base["atrasado"] & ~df_tabela_base["vence_hoje"]]
+    filtros_grafico_ativos.append(f"Situação: <b>{situacao_clicada}</b>")
+
+if filtros_grafico_ativos:
+    st.markdown(
+        f"<div style='background:#FFF4E0;border:1px solid #F6D9A0;border-radius:10px;"
+        f"padding:0.55rem 0.9rem;font-size:0.85rem;color:#8A5A00;margin-bottom:0.8rem;'>"
+        f"🔎 Filtro aplicado pelo gráfico — {' · '.join(filtros_grafico_ativos)}. "
+        f"Use \"Limpar seleção dos gráficos\", na barra lateral, para remover.</div>",
+        unsafe_allow_html=True,
+    )
+
+# ---------------------------------------------------------------------------
+# Tabela de dados + detalhamento (drill-through)
 # ---------------------------------------------------------------------------
 st.markdown('<div class="section-card">', unsafe_allow_html=True)
 st.markdown('<div class="section-title">Entregas</div>', unsafe_allow_html=True)
-st.markdown(f'<div class="section-sub">{len(df_filtrado)} entrega(s) — clique numa linha para ver o detalhamento completo</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="section-sub">{len(df_tabela_base)} entrega(s) — clique numa linha para ver o detalhamento completo</div>', unsafe_allow_html=True)
 
-if df_filtrado.empty:
+if df_tabela_base.empty:
     st.info("Nenhuma entrega encontrada para os filtros selecionados.")
 else:
     def situacao_label(row):
@@ -256,7 +354,7 @@ else:
             return "🟡 Vence hoje"
         return "🟢 Em dia"
 
-    df_tabela = df_filtrado.sort_values("dias_atraso", ascending=False).copy()
+    df_tabela = df_tabela_base.sort_values("dias_atraso", ascending=False).copy()
     df_tabela["Situação"] = df_tabela.apply(situacao_label, axis=1)
 
     colunas_exibir = ["nota_fiscal", "cliente"]
@@ -284,29 +382,51 @@ else:
     linhas_selecionadas = evento.selection.rows if evento and evento.selection else []
     if linhas_selecionadas:
         entrega = df_tabela.iloc[linhas_selecionadas[0]]
+        peso = entrega.get("peso_taxado")
+        if pd.isna(peso):
+            peso = entrega.get("peso_informado")
+
         st.markdown("<hr class='custom-divider'>", unsafe_allow_html=True)
         st.markdown(f"**Detalhamento — NF {entrega['nota_fiscal']}**")
 
         d1, d2, d3, d4 = st.columns(4)
         with d1:
-            st.caption("Cliente")
+            st.caption("Cliente (destinatário)")
             st.write(entrega["cliente"])
-            st.caption("Cidade / UF")
+            st.caption("Cidade / UF de entrega")
             st.write(f"{entrega.get('cidade_entrega', '-')} / {entrega.get('uf_entrega', '-')}")
         with d2:
+            st.caption("Remetente")
+            st.write(entrega.get("remetente") if pd.notna(entrega.get("remetente")) else "-")
+            st.caption("Cidade / UF de origem")
+            st.write(f"{entrega.get('cidade_remetente', '-')} / {entrega.get('uf_remetente', '-')}")
+        with d3:
             st.caption("Valor total")
-            st.write(fmt_moeda(entrega["valor_total"]) if pd.notna(entrega["valor_total"]) else "-")
+            st.write(fmt_moeda(entrega["valor_total"]))
+            st.caption("Peso (kg)")
+            st.write(f"{peso:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".") if pd.notna(peso) else "-")
+        with d4:
             st.caption("Volumes")
             st.write(entrega.get("qtde_volumes", "-"))
-        with d3:
+            st.caption("Motorista")
+            st.write(entrega.get("motorista") if pd.notna(entrega.get("motorista")) else "Não informado")
+
+        st.markdown("<div style='height:0.4rem;'></div>", unsafe_allow_html=True)
+        e1, e2, e3, e4 = st.columns(4)
+        with e1:
+            st.caption("Data de cadastro (entrada)")
+            st.write(f"{entrega['dt_cadastro']:%d/%m/%Y %H:%M}" if pd.notna(entrega.get("dt_cadastro")) else "-")
+        with e2:
             st.caption("Prazo atual")
             st.write(f"{entrega['dt_prazo_atual']:%d/%m/%Y}" if pd.notna(entrega["dt_prazo_atual"]) else "-")
+        with e3:
             st.caption("Agendamento")
             st.write(f"{entrega['dt_agendamento']:%d/%m/%Y}" if pd.notna(entrega["dt_agendamento"]) else "-")
-        with d4:
+        with e4:
             st.caption("Status no sistema")
             st.write(entrega["status"])
-            st.caption("Motivo do atraso")
-            st.write(entrega["motivo_atraso"] if pd.notna(entrega.get("motivo_atraso")) else "Não informado")
+
+        if pd.notna(entrega.get("motivo_atraso")):
+            st.warning(f"Motivo do atraso: {entrega['motivo_atraso']}")
 
 st.markdown('</div>', unsafe_allow_html=True)

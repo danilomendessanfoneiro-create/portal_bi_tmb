@@ -41,6 +41,13 @@ COLUNAS_UTEIS = {
     "Motivo Cancelamento": "motivo_cancelamento",
     "Motivo de Atraso": "motivo_atraso",
     "Nome Recebedor": "nome_recebedor",
+    "Dt. Cadastro": "dt_cadastro",
+    "Ult. Motorista": "motorista",
+    "Nome Remetente": "remetente",
+    "Cidade Remetente": "cidade_remetente",
+    "UF Remetente": "uf_remetente",
+    "Peso Taxado": "peso_taxado",
+    "Peso Informado": "peso_informado",
 }
 
 COLUNAS_DATA = [
@@ -48,6 +55,7 @@ COLUNAS_DATA = [
     "dt_agendamento",
     "dt_entrega",
     "dt_cancelamento",
+    "dt_cadastro",
 ]
 
 
@@ -132,8 +140,16 @@ def tratar_tipos(df: pd.DataFrame) -> pd.DataFrame:
             errors="coerce",
         )
 
+    for col in ["peso_taxado", "peso_informado"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(
+                df[col].astype(str).str.replace(",", ".", regex=False),
+                errors="coerce",
+            )
+
     # texto: tira espacos extras e padroniza vazio
-    for col in ["cliente", "filial", "status", "cidade_entrega", "uf_entrega"]:
+    for col in ["cliente", "filial", "status", "cidade_entrega", "uf_entrega",
+                "motorista", "remetente", "cidade_remetente", "uf_remetente"]:
         if col in df.columns:
             df[col] = df[col].astype(str).str.strip()
             df[col] = df[col].replace({"nan": np.nan, "-": np.nan})
