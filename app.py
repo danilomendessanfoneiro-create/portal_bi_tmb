@@ -92,7 +92,7 @@ with st.sidebar:
     cidades_disponiveis = sorted(df["cidade_entrega"].dropna().unique())
     filtro_cidade = st.multiselect("Cidade", cidades_disponiveis)
 
-    situacao = st.selectbox("Situação", ["Todas", "Atrasadas", "Vencendo hoje", "Em dia"])
+    situacao = st.selectbox("Situação", ["Todas", "Em aberto", "Vencendo hoje", "Em dia"])
 
     st.markdown("<hr>", unsafe_allow_html=True)
     st.markdown("**Período**")
@@ -145,7 +145,7 @@ if filtro_cliente:
     df_filtrado = df_filtrado[df_filtrado["cliente"].isin(filtro_cliente)]
 if filtro_cidade:
     df_filtrado = df_filtrado[df_filtrado["cidade_entrega"].isin(filtro_cidade)]
-if situacao == "Atrasadas":
+if situacao == "Em aberto":
     df_filtrado = df_filtrado[df_filtrado["atrasado"]]
 elif situacao == "Vencendo hoje":
     df_filtrado = df_filtrado[df_filtrado["vence_hoje"]]
@@ -202,11 +202,11 @@ with k1:
     st.markdown(kpi_card("package", "1E3056", "Total de entregas", f"{total_entregas}"), unsafe_allow_html=True)
 with k2:
     tipo = "tag-danger" if pct_atraso > 30 else ("tag-warning" if pct_atraso > 10 else "tag-success")
-    st.markdown(kpi_card("alert", "C0392B", "Entregas atrasadas", f"{total_atrasadas}", f"{pct_atraso:.1f}% do total", tipo), unsafe_allow_html=True)
+    st.markdown(kpi_card("alert", "C0392B", "Entregas em Aberto", f"{total_atrasadas}", f"{pct_atraso:.1f}% do total", tipo), unsafe_allow_html=True)
 with k3:
     st.markdown(kpi_card("clock", "B9770E", "Vencendo hoje", f"{total_vencendo}"), unsafe_allow_html=True)
 with k4:
-    st.markdown(kpi_card("dollar", "1E8A5F", "Valor em atraso", fmt_moeda(valor_atrasado)), unsafe_allow_html=True)
+    st.markdown(kpi_card("dollar", "1E8A5F", "Valor em Aberto", fmt_moeda(valor_atrasado)), unsafe_allow_html=True)
 
 st.markdown("<div style='height:1rem;'></div>", unsafe_allow_html=True)
 
@@ -220,7 +220,7 @@ col_esq, col_dir = st.columns([1.3, 1])
 with col_esq:
     st.markdown('<div class="section-card">', unsafe_allow_html=True)
     if perfil == "admin":
-        st.markdown('<div class="section-title">Entregas atrasadas por filial</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">Entregas em aberto por filial</div>', unsafe_allow_html=True)
         st.markdown('<div class="section-sub">Clique numa barra para filtrar a tabela abaixo só por ela</div>', unsafe_allow_html=True)
         agrupado = (
             df_filtrado[df_filtrado["atrasado"]]
@@ -228,7 +228,7 @@ with col_esq:
             .sort_values("atrasadas", ascending=True)
         )
     else:
-        st.markdown('<div class="section-title">Entregas atrasadas por cliente</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">Entregas em aberto por cliente</div>', unsafe_allow_html=True)
         st.markdown('<div class="section-sub">Clique numa barra para filtrar a tabela abaixo só por ela</div>', unsafe_allow_html=True)
         agrupado = (
             df_filtrado[df_filtrado["atrasado"]]
@@ -240,7 +240,7 @@ with col_esq:
 
     filial_clicada = None
     if agrupado.empty:
-        st.info("Nenhuma entrega atrasada para os filtros selecionados.")
+        st.info("Nenhuma entrega em aberto para os filtros selecionados.")
     else:
         fig = go.Figure(go.Bar(
             x=agrupado["atrasadas"], y=agrupado["filial"], orientation="h",
@@ -275,10 +275,10 @@ with col_dir:
 
     n_em_dia = total_entregas - total_atrasadas - total_vencendo
     dados_pie = pd.DataFrame({
-        "situacao": ["Atrasadas", "Vencendo hoje", "Em dia"],
+        "situacao": ["Em aberto", "Vencendo hoje", "Em dia"],
         "valor": [total_atrasadas, total_vencendo, max(n_em_dia, 0)],
     })
-    cores_pie = {"Atrasadas": "#C0392B", "Vencendo hoje": "#F6A532", "Em dia": "#1E8A5F"}
+    cores_pie = {"Em aberto": "#C0392B", "Vencendo hoje": "#F6A532", "Em dia": "#1E8A5F"}
 
     situacao_clicada = None
     if total_entregas == 0:
@@ -320,7 +320,7 @@ if filial_clicada:
     filtros_grafico_ativos.append(f"{rotulo}: <b>{filial_clicada}</b>")
 
 if situacao_clicada:
-    if situacao_clicada == "Atrasadas":
+    if situacao_clicada == "Em aberto":
         df_tabela_base = df_tabela_base[df_tabela_base["atrasado"]]
     elif situacao_clicada == "Vencendo hoje":
         df_tabela_base = df_tabela_base[df_tabela_base["vence_hoje"]]
@@ -349,7 +349,7 @@ if df_tabela_base.empty:
 else:
     def situacao_label(row):
         if row["atrasado"]:
-            return f"🔴 Atrasada ({int(row['dias_atraso'])}d)"
+            return f"🔴 Em aberto ({int(row['dias_atraso'])}d)"
         if row["vence_hoje"]:
             return "🟡 Vence hoje"
         return "🟢 Em dia"
@@ -360,7 +360,7 @@ else:
     colunas_exibir = ["nota_fiscal", "cliente"]
     if perfil == "admin":
         colunas_exibir.append("filial")
-    colunas_exibir += ["cidade_entrega", "valor_total", "Situação"]
+    colunas_exibir += ["cidade_entrega", "dt_agendamento", "Situação"]
 
     evento = st.dataframe(
         df_tabela[colunas_exibir],
@@ -372,7 +372,7 @@ else:
             "cliente": st.column_config.TextColumn("Cliente"),
             "filial": st.column_config.TextColumn("Filial"),
             "cidade_entrega": st.column_config.TextColumn("Cidade"),
-            "valor_total": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
+            "dt_agendamento": st.column_config.DateColumn("Agendamento", format="DD/MM/YYYY"),
             "Situação": st.column_config.TextColumn("Situação"),
         },
         on_select="rerun",
@@ -412,17 +412,20 @@ else:
             st.write(entrega.get("motorista") if pd.notna(entrega.get("motorista")) else "Não informado")
 
         st.markdown("<div style='height:0.4rem;'></div>", unsafe_allow_html=True)
-        e1, e2, e3, e4 = st.columns(4)
+        e1, e2, e3, e4, e5 = st.columns(5)
         with e1:
-            st.caption("Data de cadastro (entrada)")
+            st.caption("Data de entrada no sistema")
             st.write(f"{entrega['dt_cadastro']:%d/%m/%Y %H:%M}" if pd.notna(entrega.get("dt_cadastro")) else "-")
         with e2:
+            st.caption("Data de entrega")
+            st.write(f"{entrega['dt_entrega']:%d/%m/%Y}" if pd.notna(entrega.get("dt_entrega")) else "-")
+        with e3:
             st.caption("Prazo atual")
             st.write(f"{entrega['dt_prazo_atual']:%d/%m/%Y}" if pd.notna(entrega["dt_prazo_atual"]) else "-")
-        with e3:
+        with e4:
             st.caption("Agendamento")
             st.write(f"{entrega['dt_agendamento']:%d/%m/%Y}" if pd.notna(entrega["dt_agendamento"]) else "-")
-        with e4:
+        with e5:
             st.caption("Status no sistema")
             st.write(entrega["status"])
 
