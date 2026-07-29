@@ -1,0 +1,16 @@
+[Unit]
+Description=Portal BI TMB — Streamlit
+After=network.target postgresql.service portal-api.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/portal-bi-tmb
+EnvironmentFile=/opt/portal-bi-tmb/.env
+ExecStart=/opt/portal-bi-tmb/.venv/bin/streamlit run app.py --server.port 8501 --server.address 127.0.0.1 --server.baseUrlPath bi --browser.gatherUsageStats false
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

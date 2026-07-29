@@ -1,0 +1,15 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.streamlit/secrets.toml
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+*.log
+storage/reports/
+logs/jobs/
+.cursor/
+Untitled
+*.local.json

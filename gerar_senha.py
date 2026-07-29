@@ -1,21 +1,16 @@
 """
 gerar_senha.py
----------------
-Utilitario para gerar o hash de uma senha, para colocar no usuarios.csv.
+Utilitario para gerar o hash de uma senha.
 
 Uso:
     python gerar_senha.py MinhaSenha123
-
-Copie o hash gerado e cole na coluna 'senha_hash' da linha do usuario,
-em usuarios.csv.
 """
 import sys
-from auth import hash_senha
+
+from app.utils.password import hash_password
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("Uso: python gerar_senha.py <senha>")
         sys.exit(1)
-
-    senha = sys.argv[1]
-    print(hash_senha(senha))
+    print(hash_password(sys.argv[1]))

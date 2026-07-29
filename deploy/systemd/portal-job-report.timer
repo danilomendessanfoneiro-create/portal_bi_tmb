@@ -1,0 +1,11 @@
+[Unit]
+Description=Timer — Portal BI relatório diário (verifica a cada 15 min)
+Requires=portal-job-report.service
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+Unit=portal-job-report.service
+
+[Install]
+WantedBy=timers.target

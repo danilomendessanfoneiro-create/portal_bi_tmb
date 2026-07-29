@@ -1,0 +1,102 @@
+{
+  "project": "Portal BI TMB",
+  "branchName": "atlas/servico-jobs-relatorio-diario",
+  "description": "Worker Python independente com ReportJob diário consolidado (CSV de atrasos + um e-mail via SMTP/destinatários), horário configurável no admin, stub de importação e idempotência via prb_job_runs.",
+  "targetRepo": null,
+  "sourcePrd": "tasks/prd-servico-jobs-relatorio-diario.md",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Esqueleto do worker e registry de jobs",
+      "description": "As a developer, I want a worker/ CLI package with a job registry so batch routines run without coupling to the UI.",
+      "acceptanceCriteria": [
+        "Package worker/ with CLI: python -m worker list and python -m worker run <job_id> [--force] [--date YYYY-MM-DD] [--dry-run] [--if-due]",
+        "Registry registers jobs by stable job_id",
+        "Job import_deliveries exists as documented stub (no API, no delivery writes)",
+        "Worker reuses app.config.settings / project venv",
+        "Documentation complete"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "worker/ CLI list+run; import_deliveries stub; docs/servico-jobs.md"
+    },
+    {
+      "id": "US-002",
+      "title": "Persistência de execução e idempotência",
+      "description": "As an operator, I want the daily job not to resend the same report on the same business day without need, with an auditable run history.",
+      "acceptanceCriteria": [
+        "Incremental migration prb_job_runs with prb_* audit fields and indexes on (job_id, business_date, status)",
+        "If success exists for (report_overdue_daily, business_date) without --force, job exits without resend",
+        "Each run stores status (running/success/failed/skipped), timestamps, error message, basic metrics",
+        "Audit table/trigger for job runs or documented append-only rationale",
+        "Tests pass"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "migrations 008-009 + JobRunRepository + worker/idempotency.py"
+    },
+    {
+      "id": "US-003",
+      "title": "Geração do CSV consolidado de atrasos",
+      "description": "As operations, I want one CSV with all overdue deliveries across all branches for daily follow-up.",
+      "acceptanceCriteria": [
+        "Job report_overdue_daily reads dados/entregas_relatorio.csv with BI-aligned overdue rules via limpeza",
+        "Writes one consolidated CSV to storage/reports/YYYY-MM-DD/atrasos_consolidado.csv",
+        "Minimum columns: delivery code, client, branch, expected date, reference date, days late, status, carrier when available, other useful processed fields",
+        "--dry-run produces CSV or counts without sending email",
+        "Tests pass"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "dry-run gerou 102 linhas em storage/reports/2026-07-28/"
+    },
+    {
+      "id": "US-004",
+      "title": "Envio de e-mail único com anexo",
+      "description": "As an admin, I want the consolidated report emailed automatically to daily recipients using configured SMTP.",
+      "acceptanceCriteria": [
+        "Uses default SMTP via SmtpSettingsService / MailDispatchService",
+        "Recipients: enabled with receive_daily=true via EmailRecipientService",
+        "Sends one email (not per branch) with consolidated CSV attached",
+        "Subject/body include reference date and totals",
+        "SMTP failure marks run failed and does not mark success",
+        "SMTP password decrypted only in memory via secret_box",
+        "Tests pass"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "worker/adapters/mailer.py; envio real depende de SMTP/destinatários cadastrados"
+    },
+    {
+      "id": "US-005",
+      "title": "Horário configurável nas Configurações",
+      "description": "As an admin, I want to set the daily trigger time (default 07:00) so tests and production can adjust without code redeploy.",
+      "acceptanceCriteria": [
+        "prb_* schedule settings table with job_id, local HH:MM, timezone default America/Sao_Paulo, enabled, audit fields",
+        "Default seed: report_overdue_daily at 07:00 America/Sao_Paulo enabled=true",
+        "Admin FastAPI endpoints to get/update schedule (admin only)",
+        "React admin Configurações page to edit time and enabled flag",
+        "CLI --if-due only runs when configured local time reached and no success yet for business_date",
+        "CLI without --if-due ignores time window for local testing",
+        "Verify in browser"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "API /settings/schedules + SchedulePage; typecheck OK; browser MCP não usado nesta sessão"
+    },
+    {
+      "id": "US-006",
+      "title": "Deploy local e artefatos VPS",
+      "description": "As an operator, I want to run the job locally now and have systemd units ready for VPS after deploy.",
+      "acceptanceCriteria": [
+        "docs/servico-jobs.md updated with local test commands",
+        "systemd service+timer invoking python -m worker run report_overdue_daily --if-due on a suitable interval (e.g. every 15 min)",
+        ".gitignore covers generated storage/reports/ (or clear versioning policy)",
+        "Documentation complete"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "portal-job-report.service/timer + docs atualizados"
+    }
+  ]
+}

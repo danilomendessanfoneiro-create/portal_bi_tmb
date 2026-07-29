@@ -1,0 +1,16 @@
+[Unit]
+Description=Portal BI TMB — FastAPI
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/portal-bi-tmb
+EnvironmentFile=/opt/portal-bi-tmb/.env
+ExecStart=/opt/portal-bi-tmb/.venv/bin/uvicorn app.api.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

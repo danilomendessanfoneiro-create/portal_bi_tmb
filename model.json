@@ -1,0 +1,751 @@
+{
+    "pager": {
+        "totalResults": 6,
+        "totalPages": 1,
+        "pageSize": 500,
+        "currentPage": 1
+    },
+    "code": 200,
+    "message": "Consulta realizada com sucesso.",
+    "results": [
+        {
+            "pedidos": {
+                "numero": 2135295,
+                "servico": "Entrega Convencional",
+                "status": "ENTREGUE"
+            },
+            "arquivo": {
+                "numero": 143470
+            },
+            "notaFiscal": {
+                "numero": 6746,
+                "serie": 1,
+                "chave": "35200417249423000576550010000067461806621730",
+                "valor": 84.59
+            },
+            "clientes": {
+                "nome": "AGV Logistica",
+                "cnpj": "23429671000178"
+            },
+            "filiais": {
+                "nome": "AGV Logistica",
+                "cnpj": "23429671000178"
+            },
+            "unidades": {
+                "atual": null,
+                "entrega": "FEDEX BRASIL",
+                "devolucao": "NOWLOG",
+                "rota": 0
+            },
+            "destinatarios": {
+                "nome": "FULANO DA SILVA",
+                "rg": "",
+                "cnpj": "",
+                "cpf": "30164233911",
+                "cep": "29730000",
+                "logradouro": "BAIXO GUANDU",
+                "numero": "999",
+                "complemento": "COMPLEMENTO",
+                "bairro": "CENTRO",
+                "cidade": "Baixo Guandu",
+                "uf": "ES",
+                "referencia": null
+            },
+            "recebedor": {
+                "nome": "",
+                "cpf": null,
+                "cnpj": "",
+                "observacao": "",
+                "data": "2020-06-05T12:00:00"
+            },
+            "produto": {
+                "volumes": 1,
+                "itens": 1
+            },
+            "peso": {
+                "informado": 2,
+                "medio": 0
+            },
+            "cubagem": {
+                "informado": 0,
+                "medio": 0
+            },
+            "cte": {
+                "numero": null,
+                "serie": null
+            },
+            "devolucao": {
+                "data": null
+            },
+            "prazo": {
+                "original": null,
+                "atual": "2020-05-21T00:00:00"
+            },
+            "recebimento": {
+                "data": null
+            },
+            "cadastro": {
+                "data": "2020-05-13T10:57:10.757"
+            },
+            "atendimento": {
+                "agendamento": null,
+                "realizados": 0
+            },
+            "cancelamento": {
+                "data": null,
+                "motivo": null
+            },
+            "pendencia": {
+                "nome": null,
+                "data": null,
+                "quantidade": 0,
+                "ultima": null,
+                "observacao": null
+            },
+            "ocorrencia": {
+                "nome": "Entrega Realizada",
+                "ultima": "Entrega Realizada",
+                "observacao": "Entregue pedidos (Origem Manutenção)",
+                "data": "2020-06-05T12:00:00"
+            },
+            "romaneio": {
+                "entrega": null,
+                "transferencia": null,
+                "transDevolucao": null,
+                "devolucao": null,
+                "ultimo": null,
+                "motorista": null
+            },
+            "rementente": {
+                "nome": "AGV LOGISTICA",
+                "rg": "241070060115",
+                "cnpj": "23429671000178",
+                "cpf": "",
+                "cep": "07776180",
+                "logradouro": "AVENIDA DOUTOR ANTONIO JOAO ABDALLA",
+                "numero": "260",
+                "complemento": "LOTE AREA A QUADRA0 BLOCO 200",
+                "bairro": "JORDANESIA (JORDANESIA)",
+                "cidade": "Cajamar",
+                "uf": "SP",
+                "referencia": null
+            }
+        },
+        {
+            "pedidos": {
+                "numero": 2135296,
+                "servico": "Entrega Convencional",
+                "status": "SOLICITAÇÃO REALIZADA"
+            },
+            "arquivo": {
+                "numero": 143475
+            },
+            "notaFiscal": {
+                "numero": 6946,
+                "serie": 1,
+                "chave": "35200417249423000576550010000069461806621730",
+                "valor": 84.59
+            },
+            "clientes": {
+                "nome": "AGV Logistica",
+                "cnpj": "23429671000178"
+            },
+            "filiais": {
+                "nome": "AGV Logistica",
+                "cnpj": "23429671000178"
+            },
+            "unidades": {
+                "atual": null,
+                "entrega": "FEDEX BRASIL",
+                "devolucao": "NOWLOG",
+                "rota": 0
+            },
+            "destinatarios": {
+                "nome": "ELIANA CANESCHI (42195)",
+                "rg": "",
+                "cnpj": "",
+                "cpf": "29874879831",
+                "cep": "29730000",
+                "logradouro": "RUA SANTA GEMA",
+                "numero": "035",
+                "complemento": "ANTIGO NAR 30 - TRAVESSA DA AL",
+                "bairro": "VILA SAO RICARDO",
+                "cidade": "Baixo Guandu",
+                "uf": "ES",
+                "referencia": null
+            },
+            "recebedor": {
+                "nome": "",
+                "cpf": null,
+                "cnpj": "",
+                "observacao": "",
+                "data": null
+            },
+            "produto": {
+                "volumes": 1,
+                "itens": 1
+            },
+            "peso": {
+                "informado": 2,
+                "medio": 0
+            },
+            "cubagem": {
+                "informado": 0,
+                "medio": 0
+            },
+            "cte": {
+                "numero": null,
+                "serie": null
+            },
+            "devolucao": {
+                "data": null
+            },
+            "prazo": {
+                "original": null,
+                "atual": "2020-05-21T00:00:00"
+            },
+            "recebimento": {
+                "data": null
+            },
+            "cadastro": {
+                "data": "2020-05-13T11:08:47.473"
+            },
+            "atendimento": {
+                "agendamento": null,
+                "realizados": 0
+            },
+            "cancelamento": {
+                "data": null,
+                "motivo": null
+            },
+            "pendencia": {
+                "nome": null,
+                "data": null,
+                "quantidade": 0,
+                "ultima": null,
+                "observacao": null
+            },
+            "ocorrencia": {
+                "nome": "Criação da solicitação",
+                "ultima": "Criação da solicitação",
+                "observacao": "Arquivo EDI",
+                "data": "2020-05-13T11:08:47.473"
+            },
+            "romaneio": {
+                "entrega": null,
+                "transferencia": null,
+                "transDevolucao": null,
+                "devolucao": null,
+                "ultimo": null,
+                "motorista": null
+            },
+            "rementente": {
+                "nome": "AGV LOGISTICA",
+                "rg": "241070060115",
+                "cnpj": "23429671000178",
+                "cpf": "",
+                "cep": "07776180",
+                "logradouro": "AVENIDA DOUTOR ANTONIO JOAO ABDALLA",
+                "numero": "260",
+                "complemento": "LOTE AREA A QUADRA0 BLOCO 200",
+                "bairro": "JORDANESIA (JORDANESIA)",
+                "cidade": "Cajamar",
+                "uf": "SP",
+                "referencia": null
+            }
+        },
+        {
+            "pedidos": {
+                "numero": 2135297,
+                "servico": "Entrega Convencional",
+                "status": "ENTREGUE"
+            },
+            "arquivo": {
+                "numero": 143478
+            },
+            "notaFiscal": {
+                "numero": 8946,
+                "serie": 1,
+                "chave": "35200417249423000576550010000089461806621730",
+                "valor": 84.59
+            },
+            "clientes": {
+                "nome": "AGV Logistica",
+                "cnpj": "23429671000178"
+            },
+            "filiais": {
+                "nome": "AGV Logistica",
+                "cnpj": "23429671000178"
+            },
+            "unidades": {
+                "atual": null,
+                "entrega": "FEDEX BRASIL",
+                "devolucao": "NOWLOG",
+                "rota": 0
+            },
+            "destinatarios": {
+                "nome": "ELIANA CANESCHI (42195)",
+                "rg": "",
+                "cnpj": "",
+                "cpf": "29874879831",
+                "cep": "29730000",
+                "logradouro": "RUA SANTA GEMA",
+                "numero": "035",
+                "complemento": "ANTIGO NAR 30 - TRAVESSA DA AL",
+                "bairro": "VILA SAO RICARDO",
+                "cidade": "Baixo Guandu",
+                "uf": "ES",
+                "referencia": null
+            },
+            "recebedor": {
+                "nome": "",
+                "cpf": null,
+                "cnpj": "",
+                "observacao": "",
+                "data": "2020-06-04T12:00:00"
+            },
+            "produto": {
+                "volumes": 1,
+                "itens": 1
+            },
+            "peso": {
+                "informado": 2,
+                "medio": 0
+            },
+            "cubagem": {
+                "informado": 0,
+                "medio": 0
+            },
+            "cte": {
+                "numero": null,
+                "serie": null
+            },
+            "devolucao": {
+                "data": null
+            },
+            "prazo": {
+                "original": null,
+                "atual": "2020-05-21T00:00:00"
+            },
+            "recebimento": {
+                "data": null
+            },
+            "cadastro": {
+                "data": "2020-05-13T12:17:53.787"
+            },
+            "atendimento": {
+                "agendamento": null,
+                "realizados": 0
+            },
+            "cancelamento": {
+                "data": null,
+                "motivo": null
+            },
+            "pendencia": {
+                "nome": null,
+                "data": null,
+                "quantidade": 0,
+                "ultima": null,
+                "observacao": null
+            },
+            "ocorrencia": {
+                "nome": "Entrega Realizada",
+                "ultima": "Entrega Realizada",
+                "observacao": "testeeeeeeeeeeeeeeeeeeeeeeeeeee (Origem Manutenção)",
+                "data": "2020-06-04T12:00:00"
+            },
+            "romaneio": {
+                "entrega": null,
+                "transferencia": null,
+                "transDevolucao": null,
+                "devolucao": null,
+                "ultimo": null,
+                "motorista": null
+            },
+            "rementente": {
+                "nome": "AGV LOGISTICA",
+                "rg": "241070060115",
+                "cnpj": "23429671000178",
+                "cpf": "",
+                "cep": "07776180",
+                "logradouro": "AVENIDA DOUTOR ANTONIO JOAO ABDALLA",
+                "numero": "260",
+                "complemento": "LOTE AREA A QUADRA0 BLOCO 200",
+                "bairro": "JORDANESIA (JORDANESIA)",
+                "cidade": "Cajamar",
+                "uf": "SP",
+                "referencia": null
+            }
+        },
+        {
+            "pedidos": {
+                "numero": 2135298,
+                "servico": "Entrega Convencional",
+                "status": "ENTREGUE"
+            },
+            "arquivo": {
+                "numero": 143480
+            },
+            "notaFiscal": {
+                "numero": 20350,
+                "serie": 3,
+                "chave": "35200309102616000148550030000203501020504178",
+                "valor": 699.9
+            },
+            "clientes": {
+                "nome": "AGV Logistica",
+                "cnpj": "23429671000178"
+            },
+            "filiais": {
+                "nome": "AGV Logistica",
+                "cnpj": "23429671000178"
+            },
+            "unidades": {
+                "atual": null,
+                "entrega": "FEDEX BRASIL",
+                "devolucao": "NOWLOG",
+                "rota": 0
+            },
+            "destinatarios": {
+                "nome": "LEONARDO TEIXEIRA",
+                "rg": "",
+                "cnpj": "",
+                "cpf": "32711552080",
+                "cep": "29730000",
+                "logradouro": "RUA MADAME ALBERTINA HOLZ",
+                "numero": "165",
+                "complemento": "",
+                "bairro": "CENTRO",
+                "cidade": "Baixo Guandu",
+                "uf": "ES",
+                "referencia": null
+            },
+            "recebedor": {
+                "nome": "",
+                "cpf": null,
+                "cnpj": "",
+                "observacao": "",
+                "data": "2020-06-04T12:00:00"
+            },
+            "produto": {
+                "volumes": 1,
+                "itens": 1
+            },
+            "peso": {
+                "informado": 5,
+                "medio": 0
+            },
+            "cubagem": {
+                "informado": 0,
+                "medio": 0
+            },
+            "cte": {
+                "numero": null,
+                "serie": null
+            },
+            "devolucao": {
+                "data": null
+            },
+            "prazo": {
+                "original": null,
+                "atual": "2020-05-21T00:00:00"
+            },
+            "recebimento": {
+                "data": null
+            },
+            "cadastro": {
+                "data": "2020-05-13T14:31:23.363"
+            },
+            "atendimento": {
+                "agendamento": null,
+                "realizados": 0
+            },
+            "cancelamento": {
+                "data": null,
+                "motivo": null
+            },
+            "pendencia": {
+                "nome": null,
+                "data": null,
+                "quantidade": 0,
+                "ultima": null,
+                "observacao": null
+            },
+            "ocorrencia": {
+                "nome": "Entrega Realizada",
+                "ultima": "Entrega Realizada",
+                "observacao": "testeeeeeeeeeeeeeeeeeeeeeeeeeee (Origem Manutenção)",
+                "data": "2020-06-04T12:00:00"
+            },
+            "romaneio": {
+                "entrega": null,
+                "transferencia": null,
+                "transDevolucao": null,
+                "devolucao": null,
+                "ultimo": null,
+                "motorista": null
+            },
+            "rementente": {
+                "nome": "AGV LOGISTICA",
+                "rg": "241070060115",
+                "cnpj": "23429671000178",
+                "cpf": "",
+                "cep": "07776180",
+                "logradouro": "AVENIDA DOUTOR ANTONIO JOAO ABDALLA",
+                "numero": "260",
+                "complemento": "LOTE AREA A QUADRA0 BLOCO 200",
+                "bairro": "JORDANESIA (JORDANESIA)",
+                "cidade": "Cajamar",
+                "uf": "SP",
+                "referencia": null
+            }
+        },
+        {
+            "pedidos": {
+                "numero": 2135299,
+                "servico": "Entrega Expressa",
+                "status": "ENTREGUE"
+            },
+            "arquivo": {
+                "numero": 143482
+            },
+            "notaFiscal": {
+                "numero": 20349,
+                "serie": 3,
+                "chave": "35200309102616000148550030000203491013263526",
+                "valor": 84.59
+            },
+            "clientes": {
+                "nome": "AGV Logistica",
+                "cnpj": "23429671000178"
+            },
+            "filiais": {
+                "nome": "AGV Logistica",
+                "cnpj": "23429671000178"
+            },
+            "unidades": {
+                "atual": null,
+                "entrega": "FEDEX BRASIL",
+                "devolucao": "CARGOBR TRANSPORTES",
+                "rota": 0
+            },
+            "destinatarios": {
+                "nome": "LEONARDO TEIXEIRA",
+                "rg": "",
+                "cnpj": "",
+                "cpf": "32711552080",
+                "cep": "35200000",
+                "logradouro": "AVENIDA RAUL SOARES",
+                "numero": "123",
+                "complemento": "",
+                "bairro": "CENTRO",
+                "cidade": "Aimorés",
+                "uf": "MG",
+                "referencia": null
+            },
+            "recebedor": {
+                "nome": "",
+                "cpf": null,
+                "cnpj": "",
+                "observacao": "",
+                "data": "2020-06-04T12:00:00"
+            },
+            "produto": {
+                "volumes": 1,
+                "itens": 1
+            },
+            "peso": {
+                "informado": 2,
+                "medio": 0
+            },
+            "cubagem": {
+                "informado": 0,
+                "medio": 0
+            },
+            "cte": {
+                "numero": null,
+                "serie": null
+            },
+            "devolucao": {
+                "data": null
+            },
+            "prazo": {
+                "original": null,
+                "atual": "2020-05-21T00:00:00"
+            },
+            "recebimento": {
+                "data": null
+            },
+            "cadastro": {
+                "data": "2020-05-13T18:08:39.61"
+            },
+            "atendimento": {
+                "agendamento": null,
+                "realizados": 0
+            },
+            "cancelamento": {
+                "data": null,
+                "motivo": null
+            },
+            "pendencia": {
+                "nome": null,
+                "data": null,
+                "quantidade": 0,
+                "ultima": null,
+                "observacao": null
+            },
+            "ocorrencia": {
+                "nome": "Entrega Realizada",
+                "ultima": "Entrega Realizada",
+                "observacao": "testeeeeeeeeeeeeeeeeeeeeeeeeeee (Origem Manutenção)",
+                "data": "2020-06-04T12:00:00"
+            },
+            "romaneio": {
+                "entrega": null,
+                "transferencia": null,
+                "transDevolucao": null,
+                "devolucao": null,
+                "ultimo": null,
+                "motorista": null
+            },
+            "rementente": {
+                "nome": "AGV LOGISTICA",
+                "rg": "241070060115",
+                "cnpj": "23429671000178",
+                "cpf": "",
+                "cep": "07776180",
+                "logradouro": "AVENIDA DOUTOR ANTONIO JOAO ABDALLA",
+                "numero": "260",
+                "complemento": "LOTE AREA A QUADRA0 BLOCO 200",
+                "bairro": "JORDANESIA (JORDANESIA)",
+                "cidade": "Cajamar",
+                "uf": "SP",
+                "referencia": null
+            }
+        },
+        {
+            "pedidos": {
+                "numero": 2135300,
+                "servico": "Entrega Convencional",
+                "status": "ENTREGUE"
+            },
+            "arquivo": {
+                "numero": 143483
+            },
+            "notaFiscal": {
+                "numero": 19081,
+                "serie": 3,
+                "chave": "35200109102616000148550030000190811077571893",
+                "valor": 850.2
+            },
+            "clientes": {
+                "nome": "AGV Logistica",
+                "cnpj": "23429671000178"
+            },
+            "filiais": {
+                "nome": "AGV Logistica",
+                "cnpj": "23429671000178"
+            },
+            "unidades": {
+                "atual": null,
+                "entrega": "FEDEX BRASIL",
+                "devolucao": "NOWLOG",
+                "rota": 0
+            },
+            "destinatarios": {
+                "nome": "FRETE RAPIDO",
+                "rg": "",
+                "cnpj": "17184406000174",
+                "cpf": "",
+                "cep": "89801050",
+                "logradouro": "RUA FIBONANCIA",
+                "numero": "321",
+                "complemento": "ANTIGO NAR 30 - TRAVESSA DA AL",
+                "bairro": "BARRA DE CHOCOLATE",
+                "cidade": "Chapecó",
+                "uf": "SC",
+                "referencia": null
+            },
+            "recebedor": {
+                "nome": "",
+                "cpf": null,
+                "cnpj": "",
+                "observacao": "",
+                "data": "2020-05-25T13:30:00"
+            },
+            "produto": {
+                "volumes": 3,
+                "itens": 1
+            },
+            "peso": {
+                "informado": 2,
+                "medio": 0
+            },
+            "cubagem": {
+                "informado": 0,
+                "medio": 0
+            },
+            "cte": {
+                "numero": null,
+                "serie": null
+            },
+            "devolucao": {
+                "data": null
+            },
+            "prazo": {
+                "original": null,
+                "atual": "2020-05-21T00:00:00"
+            },
+            "recebimento": {
+                "data": null
+            },
+            "cadastro": {
+                "data": "2020-05-13T18:20:50.313"
+            },
+            "atendimento": {
+                "agendamento": null,
+                "realizados": 0
+            },
+            "cancelamento": {
+                "data": null,
+                "motivo": null
+            },
+            "pendencia": {
+                "nome": null,
+                "data": null,
+                "quantidade": 0,
+                "ultima": null,
+                "observacao": null
+            },
+            "ocorrencia": {
+                "nome": "Entrega Realizada",
+                "ultima": "Entrega Realizada",
+                "observacao": "testefsdfsdfsf (Origem Manutenção)",
+                "data": "2020-05-25T13:30:00"
+            },
+            "romaneio": {
+                "entrega": null,
+                "transferencia": null,
+                "transDevolucao": null,
+                "devolucao": null,
+                "ultimo": null,
+                "motorista": null
+            },
+            "rementente": {
+                "nome": "AGV LOGISTICA",
+                "rg": "241070060115",
+                "cnpj": "23429671000178",
+                "cpf": "",
+                "cep": "07776180",
+                "logradouro": "AVENIDA DOUTOR ANTONIO JOAO ABDALLA",
+                "numero": "260",
+                "complemento": "LOTE AREA A QUADRA0 BLOCO 200",
+                "bairro": "JORDANESIA (JORDANESIA)",
+                "cidade": "Cajamar",
+                "uf": "SP",
+                "referencia": null
+            }
+        }
+    ],
+    "errors": []
+}
