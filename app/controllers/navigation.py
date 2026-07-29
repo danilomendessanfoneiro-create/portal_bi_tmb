@@ -51,7 +51,7 @@ def render_sidebar_nav(df: pd.DataFrame, viewer: ViewerContext) -> SidebarFilter
 
         situacao = st.selectbox(
             "Situação",
-            ["Todas", "Atrasadas", "Vencendo hoje", "Em dia"],
+            ["Todas", "Em aberto", "Vencendo hoje", "Em dia"],
         )
 
         st.markdown("<hr>", unsafe_allow_html=True)
