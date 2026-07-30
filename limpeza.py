@@ -182,33 +182,58 @@ def remover_duplicados_e_invalidos(df: pd.DataFrame) -> pd.DataFrame:
 
 def calcular_atraso(df: pd.DataFrame, data_referencia: datetime | None = None) -> pd.DataFrame:
     """
-    Regra combinada com o cliente:
-    - Prazo considerado = o MAIOR entre Dt. Prazo Atual e Dt. Agendamento
+    Regra alinhada com a planilha que a operacao usa hoje (mesma logica das
+    macros VBA "F_DEMAIS_CLIENTE_1/2" rodadas na TMB):
+    - Prazo considerado = APENAS "Dt. Prazo Atual" (a regra anterior usava o
+      maior entre "Dt. Prazo Atual" e "Dt. Agendamento" - foi corrigida para
+      bater com o calculo real da operacao, apos conferir o VBA).
     - Fica de fora do calculo (nunca e' "atrasado"):
         * entregas ja canceladas (dt_cancelamento preenchida)
         * entregas ja entregues (dt_entrega preenchida)
-    - Esta atrasado quando: prazo considerado < data de referencia (hoje)
+    - Classificacao em 5 categorias, igual a coluna "Status Prazo" do Excel:
+        01_ATRASO             : prazo < hoje
+        02_VENCENDO HOJE       : prazo == hoje
+        03_VENCENDO AMANHA      : prazo == hoje + 1
+        04_DEPOIS DE AMANHA      : prazo == hoje + 2
+        05_VENCIMENTO FUTURO      : prazo > hoje + 2
     """
     df = df.copy()
     hoje = pd.Timestamp(data_referencia or datetime.now().date())
 
-    df["prazo_considerado"] = df[["dt_prazo_atual", "dt_agendamento"]].max(axis=1)
+    df["prazo_considerado"] = df["dt_prazo_atual"]
 
     df["cancelada"] = df["dt_cancelamento"].notna()
     df["entregue"] = df["dt_entrega"].notna()
 
     elegivel = ~df["cancelada"] & ~df["entregue"] & df["prazo_considerado"].notna()
 
-    df["atrasado"] = elegivel & (df["prazo_considerado"] < hoje)
+    dif_dias = (df["prazo_considerado"] - hoje).dt.days
+
+    condicoes = [
+        dif_dias < 0,
+        dif_dias == 0,
+        dif_dias == 1,
+        dif_dias == 2,
+        dif_dias > 2,
+    ]
+    categorias = [
+        "01_ATRASO",
+        "02_VENCENDO HOJE",
+        "03_VENCENDO AMANHÃ",
+        "04_DEPOIS DE AMANHÃ",
+        "05_VENCIMENTO FUTURO",
+    ]
+    df["status_prazo"] = np.select(condicoes, categorias, default=None)
+    df.loc[~elegivel, "status_prazo"] = None
+
+    df["atrasado"] = elegivel & (df["status_prazo"] == "01_ATRASO")
+    df["vence_hoje"] = elegivel & (df["status_prazo"] == "02_VENCENDO HOJE")
 
     df["dias_atraso"] = np.where(
         df["atrasado"],
         (hoje - df["prazo_considerado"]).dt.days,
         0,
     )
-
-    # Vence hoje: ainda nao atrasada, mas o prazo considerado cai exatamente hoje
-    df["vence_hoje"] = elegivel & (df["prazo_considerado"].dt.date == hoje.date())
 
     return df
 
