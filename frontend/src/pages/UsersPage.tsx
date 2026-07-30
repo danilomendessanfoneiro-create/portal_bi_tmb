@@ -108,7 +108,7 @@ export function UsersPage() {
   return (
     <div>
       <h1 className="page-title">Usuários</h1>
-      <p className="page-sub">Gerencie acessos ao portal (PostgreSQL · prb_users)</p>
+      <p className="page-sub">Cadastro e permissões de acesso ao portal</p>
 
       <div className="card">
         <div className="toolbar">

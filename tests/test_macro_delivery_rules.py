@@ -46,6 +46,20 @@ def test_exclui_clientes_macros():
     assert "NINFA INDUSTRIA DE ALIMENTOS LTDA" in CLIENTES_EXCLUIR_MACROS
 
 
+def test_exclui_clientes_macros_por_remetente():
+    """Paridade Excel: lista calc1 era a coluna Cliente comercial (= remetente)."""
+    df = pd.DataFrame(
+        {
+            "cliente": ["DESTINATARIO A", "DESTINATARIO B"],
+            "remetente": ["STELLA DORO ALIMENTOS LTDA", "OUTRO REMETENTE"],
+            "nro_entrega": ["1", "2"],
+        }
+    )
+    out = excluir_clientes_macros(df)
+    assert len(out) == 1
+    assert out.iloc[0]["cliente"] == "DESTINATARIO B"
+
+
 def test_aplicar_regras_macros_excel_parity():
     hoje = date(2026, 7, 30)
     df = pd.DataFrame(

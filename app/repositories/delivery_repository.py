@@ -16,6 +16,20 @@ class DeliveryRepository:
         *,
         actor: str,
         source: str = "api",
+        conn=None,
+    ) -> tuple[int, int]:
+        if conn is not None:
+            return self._upsert_many_on_conn(conn, records, actor=actor, source=source)
+        with get_connection() as owned:
+            return self._upsert_many_on_conn(owned, records, actor=actor, source=source)
+
+    def _upsert_many_on_conn(
+        self,
+        conn,
+        records: list[DeliveryRecord],
+        *,
+        actor: str,
+        source: str,
     ) -> tuple[int, int]:
         inserted = 0
         updated = 0
@@ -65,46 +79,45 @@ class DeliveryRepository:
                 enabled = TRUE
             RETURNING (xmax = 0) AS inserted
         """
-        with get_connection() as conn:
-            for rec in records:
-                raw = json.dumps(rec.raw_json) if rec.raw_json is not None else None
-                row = conn.execute(
-                    sql,
-                    [
-                        rec.remessa_numero,
-                        rec.nro_entrega,
-                        rec.nota_fiscal,
-                        rec.cliente,
-                        rec.filial,
-                        rec.cidade_entrega,
-                        rec.uf_entrega,
-                        rec.status,
-                        rec.valor_total,
-                        rec.qtde_volumes,
-                        rec.dt_prazo_atual,
-                        rec.dt_agendamento,
-                        rec.dt_entrega,
-                        rec.dt_cancelamento,
-                        rec.motivo_cancelamento,
-                        rec.motivo_atraso,
-                        rec.nome_recebedor,
-                        rec.dt_cadastro,
-                        rec.motorista,
-                        rec.remetente,
-                        rec.cidade_remetente,
-                        rec.uf_remetente,
-                        rec.peso_taxado,
-                        rec.peso_informado,
-                        raw,
-                        source,
-                        actor,
-                        actor,
-                    ],
-                ).fetchone()
-                if row and row.get("inserted"):
-                    inserted += 1
-                else:
-                    updated += 1
+        for rec in records:
+            raw = json.dumps(rec.raw_json) if rec.raw_json is not None else None
+            row = conn.execute(
+                sql,
+                [
+                    rec.remessa_numero,
+                    rec.nro_entrega,
+                    rec.nota_fiscal,
+                    rec.cliente,
+                    rec.filial,
+                    rec.cidade_entrega,
+                    rec.uf_entrega,
+                    rec.status,
+                    rec.valor_total,
+                    rec.qtde_volumes,
+                    rec.dt_prazo_atual,
+                    rec.dt_agendamento,
+                    rec.dt_entrega,
+                    rec.dt_cancelamento,
+                    rec.motivo_cancelamento,
+                    rec.motivo_atraso,
+                    rec.nome_recebedor,
+                    rec.dt_cadastro,
+                    rec.motorista,
+                    rec.remetente,
+                    rec.cidade_remetente,
+                    rec.uf_remetente,
+                    rec.peso_taxado,
+                    rec.peso_informado,
+                    raw,
+                    source,
+                    actor,
+                    actor,
+                ],
+            ).fetchone()
+            if row and row.get("inserted"):
+                inserted += 1
+            else:
+                updated += 1
         return inserted, updated
 
     def delete_all(self) -> int:

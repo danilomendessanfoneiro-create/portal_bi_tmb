@@ -1,22 +1,13 @@
-## [US-001] Esqueleto do worker e registry de jobs — DONE
-- Pacote `worker/` com CLI list/run e flags --force/--date/--dry-run/--if-due
-- Registry + stub `import_deliveries`; docs/servico-jobs.md
+# Atlas progress — upload-planilha-importacao-manual
+# Source: tasks/prd-upload-planilha-importacao-manual.md
 
-## [US-002] Persistência de execução e idempotência — DONE
-- Migrations 008-009 prb_job_runs + audit; JobRunRepository; worker/idempotency.py
-
-## [US-003] Geração do CSV consolidado de atrasos — DONE
-- report_overdue_daily via limpeza; CSV em storage/reports/; dry-run 102 linhas
-
-## [US-004] Envio de e-mail único com anexo — DONE
-- mailer smtplib + MailDispatchService; um e-mail consolidado; falha → status failed
-
-## [US-005] Horário configurável nas Configurações — DONE
-- prb_job_settings 010-011; API schedules; SchedulePage; --if-due
-
-## [US-006] Deploy local e artefatos VPS — DONE
-- docs/servico-jobs.md; systemd timer 15min; gitignore storage/reports/
-
-## COMPLETE — 2026-07-28
-- Branch: atlas/servico-jobs-relatorio-diario
-- All US-001..US-006 passes=true
+2026-07-30 — DONE US-001 Migrations prb_import_batches/items/logs + audit
+2026-07-30 — DONE US-002 BranchCatalogService (prb_users filial)
+2026-07-30 — DONE US-003 API upload + staging storage/imports
+2026-07-30 — DONE US-004 Validação completa (estrutura + dados)
+2026-07-30 — DONE US-005 Admin ImportPage (upload/validar/importar)
+2026-07-30 — DONE US-006 Upsert transacional prb_deliveries
+2026-07-30 — DONE US-007 Progresso UI (polling)
+2026-07-30 — DONE US-008 Histórico com filtros arquivo/usuário/data/status
+2026-07-30 — DONE US-009 Disparo report_overdue_daily --force
+2026-07-30 — DONE US-010 docs/importacao-manual-planilha.md

@@ -256,3 +256,88 @@ export function biEmbedUrl(): string {
   if (token) params.set("token", token);
   return `${base}/?${params.toString()}`;
 }
+
+export type ImportBatch = {
+  id: number;
+  file_name: string;
+  file_ext: string;
+  file_size_bytes: number;
+  file_mtime?: string | null;
+  status: string;
+  total_rows: number;
+  valid_rows: number;
+  error_rows: number;
+  rows_processed: number;
+  rows_inserted: number;
+  rows_updated: number;
+  progress_pct: number;
+  validation_errors: { row_number?: number | null; message: string }[];
+  started_on?: string | null;
+  finished_on?: string | null;
+  duration_ms?: number | null;
+  error_message?: string | null;
+  report_job_status?: string | null;
+  report_job_message?: string | null;
+  created_by?: string | null;
+  created_on?: string | null;
+};
+
+export async function uploadImportFile(file: File): Promise<ImportBatch> {
+  const form = new FormData();
+  form.append("file", file);
+  if (file.lastModified) {
+    form.append("file_mtime", new Date(file.lastModified).toISOString());
+  }
+  const headers = new Headers();
+  const token = getToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const res = await fetch(`${API_URL}/imports/upload`, { method: "POST", headers, body: form });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const body = await res.json();
+      detail = body.detail || detail;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(typeof detail === "string" ? detail : "Falha no upload");
+  }
+  return res.json();
+}
+
+export function validateImportBatch(id: number): Promise<ImportBatch> {
+  return request<ImportBatch>(`/imports/${id}/validate`, { method: "POST" });
+}
+
+export function startImportBatch(id: number): Promise<ImportBatch> {
+  return request<ImportBatch>(`/imports/${id}/import`, { method: "POST" });
+}
+
+export function getImportBatch(id: number): Promise<ImportBatch> {
+  return request<ImportBatch>(`/imports/${id}`);
+}
+
+export function softDeleteImportBatch(id: number): Promise<ImportBatch> {
+  return request<ImportBatch>(`/imports/${id}/deactivate`, { method: "POST" });
+}
+
+export function listImportBatches(params: {
+  search?: string;
+  status?: string;
+  created_by?: string;
+  date_from?: string;
+  date_to?: string;
+  page?: number;
+  page_size?: number;
+}): Promise<{ items: ImportBatch[]; total: number; page: number; page_size: number }> {
+  const q = new URLSearchParams();
+  if (params.search) q.set("search", params.search);
+  if (params.status) q.set("status", params.status);
+  if (params.created_by) q.set("created_by", params.created_by);
+  if (params.date_from) q.set("date_from", params.date_from);
+  if (params.date_to) q.set("date_to", params.date_to);
+  if (params.page) q.set("page", String(params.page));
+  if (params.page_size) q.set("page_size", String(params.page_size));
+  const qs = q.toString();
+  return request(`/imports${qs ? `?${qs}` : ""}`);
+}

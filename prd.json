@@ -1,102 +1,167 @@
 {
   "project": "Portal BI TMB",
-  "branchName": "atlas/servico-jobs-relatorio-diario",
-  "description": "Worker Python independente com ReportJob diário consolidado (CSV de atrasos + um e-mail via SMTP/destinatários), horário configurável no admin, stub de importação e idempotência via prb_job_runs.",
+  "branchName": "atlas/upload-planilha-importacao-manual",
+  "description": "Módulo admin de importação manual de planilhas (CSV/Excel) com validação em staging, upsert em prb_deliveries, histórico e disparo em background dos jobs de relatório existentes.",
   "targetRepo": null,
-  "sourcePrd": "tasks/prd-servico-jobs-relatorio-diario.md",
+  "sourcePrd": "tasks/prd-upload-planilha-importacao-manual.md",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Esqueleto do worker e registry de jobs",
-      "description": "As a developer, I want a worker/ CLI package with a job registry so batch routines run without coupling to the UI.",
+      "title": "Migrations de lote, staging e auditoria",
+      "description": "As a developer, I need prb_* tables for import batches and staging so validation can run without touching prb_deliveries.",
       "acceptanceCriteria": [
-        "Package worker/ with CLI: python -m worker list and python -m worker run <job_id> [--force] [--date YYYY-MM-DD] [--dry-run] [--if-due]",
-        "Registry registers jobs by stable job_id",
-        "Job import_deliveries exists as documented stub (no API, no delivery writes)",
-        "Worker reuses app.config.settings / project venv",
-        "Documentation complete"
+        "Incremental migrations for prb_import_batches, prb_import_batch_items (staging), and import history/log fields with created_by/created_on/modified_by/modified_on/enabled where applicable",
+        "Audit tables and triggers in project prb_* pattern",
+        "Batch stores file metadata, status enum (uploaded|validating|validated_ok|validated_error|importing|imported|failed), counters and timings",
+        "Staging references batch_id and preserves spreadsheet row number for error messages",
+        "Typecheck passes",
+        "Tests pass"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "worker/ CLI list+run; import_deliveries stub; docs/servico-jobs.md"
+      "notes": "Implemented in atlas/upload-planilha-importacao-manual"
     },
     {
       "id": "US-002",
-      "title": "Persistência de execução e idempotência",
-      "description": "As an operator, I want the daily job not to resend the same report on the same business day without need, with an auditable run history.",
+      "title": "Catálogo de filiais para validação de existência",
+      "description": "As an admin, I want import to reject unknown branch codes and suggest registering the branch.",
       "acceptanceCriteria": [
-        "Incremental migration prb_job_runs with prb_* audit fields and indexes on (job_id, business_date, status)",
-        "If success exists for (report_overdue_daily, business_date) without --force, job exits without resend",
-        "Each run stores status (running/success/failed/skipped), timestamps, error message, basic metrics",
-        "Audit table/trigger for job runs or documented append-only rationale",
+        "Branch source of truth: distinct non-empty branch from prb_users where profile='filial' and enabled=true",
+        "Empty or unknown branch produces per-row error and blocks the batch",
+        "Error message suggests registering the branch via Administração → Usuários (filial profile + Filial field)",
+        "Typecheck passes",
         "Tests pass"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "migrations 008-009 + JobRunRepository + worker/idempotency.py"
+      "notes": "Implemented in atlas/upload-planilha-importacao-manual"
     },
     {
       "id": "US-003",
-      "title": "Geração do CSV consolidado de atrasos",
-      "description": "As operations, I want one CSV with all overdue deliveries across all branches for daily follow-up.",
+      "title": "API de upload e criação de batch em staging",
+      "description": "As an admin, I want to upload one spreadsheet so rows are staged for validation without writing deliveries.",
       "acceptanceCriteria": [
-        "Job report_overdue_daily reads dados/entregas_relatorio.csv with BI-aligned overdue rules via limpeza",
-        "Writes one consolidated CSV to storage/reports/YYYY-MM-DD/atrasos_consolidado.csv",
-        "Minimum columns: delivery code, client, branch, expected date, reference date, days late, status, carrier when available, other useful processed fields",
-        "--dry-run produces CSV or counts without sending email",
+        "Admin-only multipart upload endpoint; one file per request",
+        "Accept .csv, .xlsx, .xls; reject other types with clear 400",
+        "Reject empty/corrupt files and files over 20 MB or 100000 data rows; Excel validates expected sheet exists",
+        "Persist file under storage/imports (retention allowed, no auto-purge in this delivery); create batch + staging only — no prb_deliveries writes",
+        "Reuse CSV column mapping (limpeza COLUNAS_UTEIS / CsvDeliveryImportService patterns); Excel converts to same internal schema",
+        "Typecheck passes",
         "Tests pass"
       ],
       "priority": 3,
       "passes": true,
-      "notes": "dry-run gerou 102 linhas em storage/reports/2026-07-28/"
+      "notes": "Implemented in atlas/upload-planilha-importacao-manual"
     },
     {
       "id": "US-004",
-      "title": "Envio de e-mail único com anexo",
-      "description": "As an admin, I want the consolidated report emailed automatically to daily recipients using configured SMTP.",
+      "title": "Serviço de validação completa do lote",
+      "description": "As an admin, I want a full validation pass on staged data before any production update.",
       "acceptanceCriteria": [
-        "Uses default SMTP via SmtpSettingsService / MailDispatchService",
-        "Recipients: enabled with receive_daily=true via EmailRecipientService",
-        "Sends one email (not per branch) with consolidated CSV attached",
-        "Subject/body include reference date and totals",
-        "SMTP failure marks run failed and does not mark success",
-        "SMTP password decrypted only in memory via secret_box",
+        "Validate endpoint/service reads staging only; does not modify prb_deliveries",
+        "Structure checks: required columns, unknown/duplicate columns, types",
+        "Data checks: dates, numbers, required empties, duplicate nro_entrega/remessa within sheet, unknown branch (US-002)",
+        "Each error stores line number + explicit Portuguese message",
+        "Batch counters and status updated to validated_ok or validated_error",
+        "Typecheck passes",
         "Tests pass"
       ],
       "priority": 4,
       "passes": true,
-      "notes": "worker/adapters/mailer.py; envio real depende de SMTP/destinatários cadastrados"
+      "notes": "Implemented in atlas/upload-planilha-importacao-manual"
     },
     {
       "id": "US-005",
-      "title": "Horário configurável nas Configurações",
-      "description": "As an admin, I want to set the daily trigger time (default 07:00) so tests and production can adjust without code redeploy.",
+      "title": "Tela Admin — Upload, validação e resultado",
+      "description": "As an admin, I want an Importação de Dados screen with drag-and-drop and validation results for the two-step flow.",
       "acceptanceCriteria": [
-        "prb_* schedule settings table with job_id, local HH:MM, timezone default America/Sao_Paulo, enabled, audit fields",
-        "Default seed: report_overdue_daily at 07:00 America/Sao_Paulo enabled=true",
-        "Admin FastAPI endpoints to get/update schedule (admin only)",
-        "React admin Configurações page to edit time and enabled flag",
-        "CLI --if-due only runs when configured local time reached and no success yet for business_date",
-        "CLI without --if-due ignores time window for local testing",
+        "Menu Administração → Importação de Dados visible only to admin",
+        "UI: drag-and-drop, file picker, file metadata, Validar Planilha and Importar Dados buttons",
+        "Importar Dados disabled until validated_ok (zero errors)",
+        "After validation show totals and detailed error list",
+        "Visual identity matches existing Admin React",
+        "Typecheck passes",
         "Verify in browser"
       ],
       "priority": 5,
       "passes": true,
-      "notes": "API /settings/schedules + SchedulePage; typecheck OK; browser MCP não usado nesta sessão"
+      "notes": "Implemented in atlas/upload-planilha-importacao-manual"
     },
     {
       "id": "US-006",
-      "title": "Deploy local e artefatos VPS",
-      "description": "As an operator, I want to run the job locally now and have systemd units ready for VPS after deploy.",
+      "title": "Importação efetiva com upsert e transação",
+      "description": "As an admin, I want confirmed import to upsert deliveries by remessa/nro_entrega using existing business rules.",
       "acceptanceCriteria": [
-        "docs/servico-jobs.md updated with local test commands",
-        "systemd service+timer invoking python -m worker run report_overdue_daily --if-due on a suitable interval (e.g. every 15 min)",
-        ".gitignore covers generated storage/reports/ (or clear versioning policy)",
-        "Documentation complete"
+        "Import endpoint accepts only validated_ok batches; otherwise 400/409",
+        "Staging maps to DeliveryRecord and upserts prb_deliveries by remessa_numero (same as CSV/API)",
+        "Reuse existing cleanup/macro pipeline as applicable on write",
+        "Single DB transaction for the batch; on error full rollback and status failed with log",
+        "Update inserted/updated counters and status imported",
+        "Typecheck passes",
+        "Tests pass"
       ],
       "priority": 6,
       "passes": true,
-      "notes": "portal-job-report.service/timer + docs atualizados"
+      "notes": "Implemented in atlas/upload-planilha-importacao-manual"
+    },
+    {
+      "id": "US-007",
+      "title": "Progresso da importação na UI",
+      "description": "As an admin, I want progress feedback during import for large files.",
+      "acceptanceCriteria": [
+        "During import UI shows progress bar with percent, processed and remaining (polling or equivalent)",
+        "On completion show summary: processed, updated, inserted, total time",
+        "Typecheck passes",
+        "Verify in browser"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "Implemented in atlas/upload-planilha-importacao-manual"
+    },
+    {
+      "id": "US-008",
+      "title": "Histórico de importações",
+      "description": "As an admin, I want a searchable history grid of past imports for audit.",
+      "acceptanceCriteria": [
+        "Grid on same page: datetime, user, file, total, inserted, updated, errors, duration, status",
+        "Filters by date, user, file, status",
+        "Data from prb_import_* tables (not in-memory only)",
+        "Typecheck passes",
+        "Verify in browser"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "Implemented in atlas/upload-planilha-importacao-manual"
+    },
+    {
+      "id": "US-009",
+      "title": "Disparo automático dos jobs de relatório após importação",
+      "description": "As an admin, I want filial and gerencial report jobs to run in background after successful manual import.",
+      "acceptanceCriteria": [
+        "After successful imported status, trigger existing report_overdue_daily worker (both phases) in background — do not reimplement mail/HTML in the page",
+        "API import response is not blocked by report job runtime; trigger failures are logged on batch without rolling back deliveries",
+        "Manual post-import trigger bypasses --if-due window (e.g. --force) and is documented",
+        "Document Alternative 1 rationale (reuse jobs) in feature docs",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": "Implemented in atlas/upload-planilha-importacao-manual"
+    },
+    {
+      "id": "US-010",
+      "title": "Documentação do módulo de importação manual",
+      "description": "As a maintainer, I want docs covering the manual import flow, tables, validation and job trigger.",
+      "acceptanceCriteria": [
+        "Update repo docs: upload→staging→validate→import flow, tables, validation rules, upsert, job trigger, supported spreadsheet model (CSV+Excel)",
+        "Include Mermaid flowchart of the process",
+        "Documentation complete",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": "Implemented in atlas/upload-planilha-importacao-manual"
     }
   ]
 }

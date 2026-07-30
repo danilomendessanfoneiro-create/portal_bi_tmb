@@ -1,1 +1,2 @@
 tasks/prd-servico-jobs-relatorio-diario.md
+tasks/prd-upload-planilha-importacao-manual.md

@@ -72,9 +72,29 @@ sudo systemctl list-timers | grep portal-job
 
 | Timer | Job |
 |-------|-----|
-| `portal-job-report.timer` | `report_overdue_daily --if-due` |
+| `portal-job-report.timer` | `report_overdue_daily --if-due` (também grava snapshot histórico antes do e-mail) |
 | `portal-job-import.timer` | `import_deliveries_daily --if-due` |
 
 Os timers disparam a cada 15 minutos; o worker com `--if-due` respeita o horário de cada automação no Admin. Carga inicial: `import_deliveries_initial --force` (manual, one-shot).
+
+Após **importação manual de planilha** no Admin, o sistema dispara em background:
+
+```bash
+python -m worker run report_overdue_daily --force
+```
+
+(`--force` ignora a janela horária; detalhes em [importacao-manual-planilha.md](importacao-manual-planilha.md).)
+
+## Snapshots históricos (BI Histórico)
+
+Antes dos e-mails, `report_overdue_daily` grava um snapshot imutável em `prb_bi_snapshot_run` / `prb_bi_snapshot_overdue` (1× por `business_date`). A aba **Histórico** no Streamlit consome essas tabelas.
+
+Demo (dados fake, não mistura com `source=job`):
+
+```bash
+python database/deploy/seed_bi_snapshot_demo.py --days 30 --replace-demo
+```
+
+Ver PRD: `tasks/prd-bi-historico-snapshots.md`
 
 Ver PRD: `tasks/prd-ajustes-envio-relatorios-automacoes.md`

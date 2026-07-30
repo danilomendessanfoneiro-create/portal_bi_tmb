@@ -26,6 +26,9 @@ export function SettingsPage() {
         <NavLink to="/settings/schedules" className="nav-link" style={{ color: "var(--navy)" }}>
           Automações — horários dos relatórios e importações
         </NavLink>
+        <NavLink to="/imports" className="nav-link" style={{ color: "var(--navy)" }}>
+          Importação de Dados — planilha manual
+        </NavLink>
       </div>
     </div>
   );

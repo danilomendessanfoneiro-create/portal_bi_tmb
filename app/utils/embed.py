@@ -10,6 +10,8 @@ header[data-testid="stHeader"] { display: none !important; }
 div[data-testid="stToolbar"] { display: none !important; }
 footer { display: none !important; }
 div[data-testid="stDecoration"] { display: none !important; }
+section[data-testid="stSidebar"] { display: none !important; }
+div[data-testid="collapsedControl"] { display: none !important; }
 .block-container {
     padding-top: 1rem !important;
     padding-left: 1rem !important;

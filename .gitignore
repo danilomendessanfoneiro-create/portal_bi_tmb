@@ -10,6 +10,7 @@ frontend/.vite/
 frontend/.env
 *.log
 storage/reports/
+storage/imports/
 logs/jobs/
 .cursor/
 Untitled

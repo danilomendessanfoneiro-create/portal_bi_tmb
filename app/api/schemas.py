@@ -208,4 +208,42 @@ class ApiSettingsListResponse(BaseModel):
     page_size: int
 
 
+class ImportBatchOut(BaseModel):
+    id: int
+    file_name: str
+    file_ext: str
+    file_size_bytes: int
+    file_mtime: Optional[datetime] = None
+    status: str
+    total_rows: int = 0
+    valid_rows: int = 0
+    error_rows: int = 0
+    rows_processed: int = 0
+    rows_inserted: int = 0
+    rows_updated: int = 0
+    progress_pct: float = 0
+    validation_errors: list[dict] = []
+    started_on: Optional[datetime] = None
+    finished_on: Optional[datetime] = None
+    duration_ms: Optional[int] = None
+    error_message: Optional[str] = None
+    report_job_status: Optional[str] = None
+    report_job_message: Optional[str] = None
+    created_by: Optional[str] = None
+    created_on: Optional[datetime] = None
+
+
+class ImportBatchListResponse(BaseModel):
+    items: list[ImportBatchOut]
+    total: int
+    page: int
+    page_size: int
+
+
+class ImportErrorOut(BaseModel):
+    row_number: Optional[int] = None
+    level: str = "error"
+    message: str
+
+
 TokenResponse.model_rebuild()

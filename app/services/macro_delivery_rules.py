@@ -71,13 +71,17 @@ def classificar_status_prazo(dt_prazo_atual: DateLike, hoje: DateLike) -> str:
 
 
 def excluir_clientes_macros(df: pd.DataFrame) -> pd.DataFrame:
-    """Remove os 5 clientes hardcoded do calc1."""
-    if df.empty or "cliente" not in df.columns:
+    """Remove os 5 clientes hardcoded do calc1 (coluna Cliente Excel ≈ remetente)."""
+    if df.empty:
         return df
     out = df.copy()
-    clientes = out["cliente"].astype(str).str.strip().str.upper()
     excluir = {c.upper() for c in CLIENTES_EXCLUIR_MACROS}
-    return out.loc[~clientes.isin(excluir)].reset_index(drop=True)
+    mask = pd.Series(False, index=out.index)
+    if "remetente" in out.columns:
+        mask |= out["remetente"].astype(str).str.strip().str.upper().isin(excluir)
+    if "cliente" in out.columns:
+        mask |= out["cliente"].astype(str).str.strip().str.upper().isin(excluir)
+    return out.loc[~mask].reset_index(drop=True)
 
 
 def aplicar_regras_macros(

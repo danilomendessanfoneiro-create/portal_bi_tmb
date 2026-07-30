@@ -27,7 +27,8 @@ from datetime import datetime
 COLUNAS_UTEIS = {
     "Nro. Entrega": "nro_entrega",
     "Nota Fiscal": "nota_fiscal",
-    "Cliente": "cliente",
+    # Destinatário da entrega (paridade com API: destinatario.nome → cliente)
+    "Nome Pessoa Visita": "cliente",
     "Sigla Unidade Entrega": "filial",          # unidade da transportadora
     "Cidade Pessoa Visita": "cidade_entrega",
     "UF Pessoa Visita": "uf_entrega",

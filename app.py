@@ -17,7 +17,7 @@ st.set_page_config(
     page_title="Portal BI - TMB Logística",
     page_icon=str(settings.logo_path) if settings.logo_path.exists() else None,
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 require_login()

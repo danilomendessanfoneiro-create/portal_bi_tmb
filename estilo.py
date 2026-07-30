@@ -35,9 +35,11 @@ h1, h2, h3, .kpi-value, .brand-title {
 .stApp { background: #F5F7FA; }
 
 section[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #1E3056 0%, #142240 100%);
+    display: none !important;
 }
-section[data-testid="stSidebar"] * { color: #E7ECF5 !important; }
+div[data-testid="collapsedControl"] {
+    display: none !important;
+}
 section[data-testid="stSidebar"] label {
     color: #AFC0DA !important; font-weight: 700; font-size: 0.72rem;
     text-transform: uppercase; letter-spacing: 0.04em;

@@ -2,18 +2,27 @@
 
 from __future__ import annotations
 
+from datetime import date, datetime
+
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 from zoneinfo import ZoneInfo
 
-from app.controllers.navigation import render_sidebar_nav
+from app.controllers.navigation import (
+    CHART_BAR_KEY,
+    CHART_PIE_KEY,
+    DRILL_FILIAL_KEY,
+    DRILL_SITUACAO_KEY,
+    render_bi_filters_panel,
+)
 from app.services.access_scope_service import AccessScopeError, AccessScopeService
 from app.utils.style import kpi_card
 from limpeza import processar_entregas
 
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
+SITUACOES_PIE = ["Em aberto", "Vencendo hoje", "Em dia"]
 
 
 def agora_br() -> pd.Timestamp:
@@ -38,6 +47,102 @@ def render_dashboard() -> None:
         st.error(str(exc))
         return
 
+    tab_op, tab_hist = st.tabs(["Operacional", "Histórico"])
+    with tab_hist:
+        from app.controllers.history_controller import render_historico
+
+        render_historico(viewer=viewer, scope=scope, hoje=hoje.date())
+
+    with tab_op:
+        _render_operacional(
+            viewer=viewer,
+            scope=scope,
+            perfil=perfil,
+            filial_usuario=filial_usuario,
+            hoje=hoje,
+        )
+
+
+def _aplicar_situacao(df: pd.DataFrame, situacao: str | None) -> pd.DataFrame:
+    if not situacao or situacao == "Todas":
+        return df
+    if situacao == "Em aberto":
+        return df[df["atrasado"]]
+    if situacao == "Vencendo hoje":
+        return df[df["vence_hoje"]]
+    if situacao == "Em dia":
+        return df[~df["atrasado"] & ~df["vence_hoje"]]
+    return df
+
+
+def _extrair_label_pie(pontos: list, labels: list[str]) -> str | None:
+    """Plotly/Streamlit nem sempre devolve 'label' na seleção da pizza."""
+    if not pontos:
+        return None
+    ponto = pontos[0]
+    label = ponto.get("label")
+    if label in labels:
+        return label
+    for chave in ("point_number", "pointNumber", "point_index"):
+        idx = ponto.get(chave)
+        if idx is not None:
+            try:
+                i = int(idx)
+            except (TypeError, ValueError):
+                continue
+            if 0 <= i < len(labels):
+                return labels[i]
+    curve = ponto.get("curve_number", ponto.get("curveNumber"))
+    if curve is not None:
+        try:
+            i = int(curve)
+            if 0 <= i < len(labels):
+                return labels[i]
+        except (TypeError, ValueError):
+            pass
+    return None
+
+
+def _as_python_date(value):
+    if value is None:
+        return None
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    try:
+        ts = pd.Timestamp(value)
+        if pd.isna(ts):
+            return None
+        return ts.date()
+    except (TypeError, ValueError):
+        return None
+
+
+def _sanitize_drills(
+    df_base: pd.DataFrame,
+    *,
+    coluna_grafico1: str,
+    filial_clicada: str | None,
+    situacao_clicada: str | None,
+) -> tuple[str | None, str | None]:
+    """Remove drills incompatíveis com o recorte atual (evita KPIs zerados)."""
+    if filial_clicada:
+        valores = set(df_base[coluna_grafico1].dropna().astype(str).unique())
+        if str(filial_clicada) not in valores:
+            st.session_state.pop(DRILL_FILIAL_KEY, None)
+            st.session_state.pop(CHART_BAR_KEY, None)
+            filial_clicada = None
+
+    if situacao_clicada:
+        df_sit = _aplicar_situacao(df_base, situacao_clicada)
+        if df_sit.empty and not df_base.empty:
+            st.session_state.pop(DRILL_SITUACAO_KEY, None)
+            st.session_state.pop(CHART_PIE_KEY, None)
+            situacao_clicada = None
+
+    return filial_clicada, situacao_clicada
+
+
+def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
     try:
         df = _carregar_dados(hoje.date())
     except FileNotFoundError as exc:
@@ -49,49 +154,6 @@ def render_dashboard() -> None:
     except AccessScopeError as exc:
         st.error(str(exc))
         return
-
-    filtros = render_sidebar_nav(df, viewer)
-
-    branch_filter = scope.resolve_branch_filter(viewer, filtros.filtro_filial)
-
-    limite = hoje - pd.Timedelta(days=filtros.tolerancia)
-    df = df.copy()
-    # Paridade macros: base = Dt. Prazo Atual; tolerância da UI só atrasa o corte
-    df["atrasado"] = df["prazo_considerado"].notna() & (df["prazo_considerado"] < limite)
-    df["dias_atraso"] = np.where(
-        df["atrasado"],
-        (hoje - df["prazo_considerado"]).dt.days,
-        0,
-    )
-    df["vence_hoje"] = df["prazo_considerado"].notna() & (
-        df["prazo_considerado"].dt.date == hoje.date()
-    )
-
-    df_filtrado = df.copy()
-    if branch_filter:
-        df_filtrado = df_filtrado[df_filtrado["filial"].isin(branch_filter)]
-    if filtros.filtro_cliente:
-        df_filtrado = df_filtrado[df_filtrado["cliente"].isin(filtros.filtro_cliente)]
-    if filtros.filtro_cidade:
-        df_filtrado = df_filtrado[df_filtrado["cidade_entrega"].isin(filtros.filtro_cidade)]
-    if filtros.situacao == "Em aberto":
-        df_filtrado = df_filtrado[df_filtrado["atrasado"]]
-    elif filtros.situacao == "Vencendo hoje":
-        df_filtrado = df_filtrado[df_filtrado["vence_hoje"]]
-    elif filtros.situacao == "Em dia":
-        df_filtrado = df_filtrado[~df_filtrado["atrasado"] & ~df_filtrado["vence_hoje"]]
-    if filtros.busca:
-        b = filtros.busca.strip().lower()
-        df_filtrado = df_filtrado[
-            df_filtrado["nota_fiscal"].astype(str).str.lower().str.contains(b)
-            | df_filtrado["cliente"].astype(str).str.lower().str.contains(b)
-        ]
-    if filtros.filtro_periodo and len(filtros.filtro_periodo) == 2:
-        ini, fim = filtros.filtro_periodo
-        df_filtrado = df_filtrado[
-            df_filtrado["prazo_considerado"].dt.date.between(ini, fim)
-            | df_filtrado["prazo_considerado"].isna()
-        ]
 
     col_titulo, col_data = st.columns([3, 1])
     with col_titulo:
@@ -110,12 +172,88 @@ def render_dashboard() -> None:
             unsafe_allow_html=True,
         )
 
+    datas_validas = df["prazo_considerado"].dropna()
+    periodo_bounds = None
+    if not datas_validas.empty:
+        periodo_bounds = (datas_validas.min().date(), datas_validas.max().date())
+
+    filtros = render_bi_filters_panel(
+        viewer=viewer,
+        mode="operacional",
+        filiais=sorted(df["filial"].dropna().astype(str).unique()),
+        clientes=sorted(df["cliente"].dropna().astype(str).unique()),
+        cidades=sorted(df["cidade_entrega"].dropna().astype(str).unique()),
+        periodo_bounds=periodo_bounds,
+    )
+
+    branch_filter = [str(x).strip() for x in (scope.resolve_branch_filter(viewer, filtros.filtro_filial) or []) if x]
+
+    limite = hoje - pd.Timedelta(days=filtros.tolerancia)
+    df = df.copy()
+    df["atrasado"] = df["prazo_considerado"].notna() & (df["prazo_considerado"] < limite)
+    df["dias_atraso"] = np.where(
+        df["atrasado"],
+        (hoje - df["prazo_considerado"]).dt.days,
+        0,
+    )
+    df["vence_hoje"] = df["prazo_considerado"].notna() & (
+        df["prazo_considerado"].dt.date == hoje.date()
+    )
+
+    # Recorte dimensional (sem situação) — base dos 4 KPIs
+    df_base = df.copy()
+    if branch_filter:
+        df_base = df_base[df_base["filial"].astype(str).str.strip().isin(branch_filter)]
+    if filtros.filtro_cliente:
+        clientes = [str(x).strip() for x in filtros.filtro_cliente]
+        df_base = df_base[df_base["cliente"].astype(str).str.strip().isin(clientes)]
+    if filtros.filtro_cidade:
+        cidades = [str(x).strip() for x in filtros.filtro_cidade]
+        df_base = df_base[df_base["cidade_entrega"].astype(str).str.strip().isin(cidades)]
+    if filtros.busca:
+        b = filtros.busca.strip().lower()
+        df_base = df_base[
+            df_base["nota_fiscal"].astype(str).str.lower().str.contains(b, na=False)
+            | df_base["cliente"].astype(str).str.lower().str.contains(b, na=False)
+        ]
+    if filtros.filtro_periodo and len(filtros.filtro_periodo) == 2:
+        ini = _as_python_date(filtros.filtro_periodo[0])
+        fim = _as_python_date(filtros.filtro_periodo[1])
+        if ini and fim:
+            prazos = df_base["prazo_considerado"].dt.date
+            df_base = df_base[prazos.between(ini, fim) | df_base["prazo_considerado"].isna()]
+
+    # Situação do painel só afeta gráficos/tabela (não zera os cards irmãos)
+    df_filtrado = _aplicar_situacao(df_base, filtros.situacao)
+
+    coluna_grafico1 = "filial" if perfil == "admin" else "cliente"
+    filial_clicada, situacao_clicada = _sanitize_drills(
+        df_base,
+        coluna_grafico1=coluna_grafico1,
+        filial_clicada=st.session_state.get(DRILL_FILIAL_KEY),
+        situacao_clicada=st.session_state.get(DRILL_SITUACAO_KEY),
+    )
+
+    # KPIs: dimensões + drill de barras; situação (painel/pizza) não zera os outros cards
+    df_contexto = df_base.copy()
+    if filial_clicada:
+        df_contexto = df_contexto[df_contexto[coluna_grafico1].astype(str) == str(filial_clicada)]
+
+    df_barras = _aplicar_situacao(df_filtrado.copy(), situacao_clicada)
+    df_pizza = df_filtrado.copy()
+    if filial_clicada:
+        df_pizza = df_pizza[df_pizza[coluna_grafico1].astype(str) == str(filial_clicada)]
+
     st.markdown("<div style='height:0.6rem;'></div>", unsafe_allow_html=True)
 
-    total_entregas = len(df_filtrado)
-    total_atrasadas = int(df_filtrado["atrasado"].sum())
-    total_vencendo = int(df_filtrado["vence_hoje"].sum())
-    valor_atrasado = df_filtrado.loc[df_filtrado["atrasado"], "valor_total"].sum()
+    total_entregas = len(df_contexto)
+    total_atrasadas = int(df_contexto["atrasado"].sum()) if total_entregas else 0
+    total_vencendo = int(df_contexto["vence_hoje"].sum()) if total_entregas else 0
+    valor_atrasado = (
+        float(df_contexto.loc[df_contexto["atrasado"], "valor_total"].sum()) if total_entregas else 0.0
+    )
+    if pd.isna(valor_atrasado):
+        valor_atrasado = 0.0
     pct_atraso = (total_atrasadas / total_entregas * 100) if total_entregas else 0
 
     def fmt_moeda(v):
@@ -139,31 +277,29 @@ def render_dashboard() -> None:
 
     st.markdown("<div style='height:1rem;'></div>", unsafe_allow_html=True)
 
-    coluna_grafico1 = "filial" if perfil == "admin" else "cliente"
     col_esq, col_dir = st.columns([1.3, 1])
 
     with col_esq:
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
         if perfil == "admin":
             st.markdown('<div class="section-title">Entregas em aberto por filial</div>', unsafe_allow_html=True)
-            st.markdown('<div class="section-sub">Clique numa barra para filtrar a tabela abaixo só por ela</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-sub">Clique numa barra para filtrar o dashboard</div>', unsafe_allow_html=True)
             agrupado = (
-                df_filtrado[df_filtrado["atrasado"]]
+                df_barras[df_barras["atrasado"]]
                 .groupby("filial").size().reset_index(name="atrasadas")
                 .sort_values("atrasadas", ascending=True)
             )
         else:
             st.markdown('<div class="section-title">Entregas em aberto por cliente</div>', unsafe_allow_html=True)
-            st.markdown('<div class="section-sub">Clique numa barra para filtrar a tabela abaixo só por ela</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-sub">Clique numa barra para filtrar o dashboard</div>', unsafe_allow_html=True)
             agrupado = (
-                df_filtrado[df_filtrado["atrasado"]]
+                df_barras[df_barras["atrasado"]]
                 .groupby("cliente").size().reset_index(name="atrasadas")
                 .sort_values("atrasadas", ascending=True)
                 .tail(8)
                 .rename(columns={"cliente": "filial"})
             )
 
-        filial_clicada = None
         if agrupado.empty:
             st.info("Nenhuma entrega em aberto para os filtros selecionados.")
         else:
@@ -187,33 +323,42 @@ def render_dashboard() -> None:
             )
             evento_bar = st.plotly_chart(
                 fig, use_container_width=True, config={"displayModeBar": False},
-                on_select="rerun", selection_mode="points", key="grafico_barras",
+                on_select="rerun", selection_mode="points", key=CHART_BAR_KEY,
             )
             pontos = evento_bar.selection.points if evento_bar and evento_bar.selection else []
             if pontos:
-                filial_clicada = pontos[0].get("y")
+                nova_filial = pontos[0].get("y")
+                if nova_filial and nova_filial != st.session_state.get(DRILL_FILIAL_KEY):
+                    st.session_state[DRILL_FILIAL_KEY] = nova_filial
+                    st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
     with col_dir:
         st.markdown('<div class="section-card">', unsafe_allow_html=True)
         st.markdown('<div class="section-title">Distribuição por situação</div>', unsafe_allow_html=True)
-        st.markdown('<div class="section-sub">Clique numa fatia para filtrar a tabela abaixo</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-sub">Clique numa fatia para filtrar o dashboard</div>', unsafe_allow_html=True)
 
-        n_em_dia = total_entregas - total_atrasadas - total_vencendo
+        total_pie = len(df_pizza)
+        n_atraso = int(df_pizza["atrasado"].sum()) if total_pie else 0
+        n_vence = int(df_pizza["vence_hoje"].sum()) if total_pie else 0
+        n_em_dia = max(total_pie - n_atraso - n_vence, 0)
         dados_pie = pd.DataFrame({
-            "situacao": ["Em aberto", "Vencendo hoje", "Em dia"],
-            "valor": [total_atrasadas, total_vencendo, max(n_em_dia, 0)],
+            "situacao": SITUACOES_PIE,
+            "valor": [n_atraso, n_vence, n_em_dia],
         })
         cores_pie = {"Em aberto": "#C0392B", "Vencendo hoje": "#F6A532", "Em dia": "#1E8A5F"}
 
-        situacao_clicada = None
-        if total_entregas == 0:
+        if total_pie == 0:
             st.info("Sem dados para os filtros selecionados.")
         else:
             fig2 = go.Figure(go.Pie(
-                labels=dados_pie["situacao"], values=dados_pie["valor"], hole=0.65,
+                labels=dados_pie["situacao"],
+                values=dados_pie["valor"],
+                hole=0.65,
+                customdata=dados_pie["situacao"],
                 marker=dict(colors=[cores_pie[s] for s in dados_pie["situacao"]]),
-                textinfo="percent", textfont=dict(size=12, family="Inter, sans-serif"),
+                textinfo="percent",
+                textfont=dict(size=12, family="Inter, sans-serif"),
                 hovertemplate="<b>%{label}</b><br>%{value} entregas<extra></extra>",
             ))
             fig2.update_layout(
@@ -222,7 +367,7 @@ def render_dashboard() -> None:
                 font=dict(family="Inter, sans-serif", color="#1E3056", size=12),
                 legend=dict(orientation="h", yanchor="bottom", y=-0.15, x=0.5, xanchor="center"),
                 annotations=[dict(
-                    text=f"<b>{total_entregas}</b><br><span style='font-size:11px;color:#64748B'>entregas</span>",
+                    text=f"<b>{total_pie}</b><br><span style='font-size:11px;color:#64748B'>entregas</span>",
                     x=0.5, y=0.5, showarrow=False,
                     font=dict(size=20, color="#1E3056", family="Manrope, sans-serif"),
                 )],
@@ -230,26 +375,41 @@ def render_dashboard() -> None:
             )
             evento_pie = st.plotly_chart(
                 fig2, use_container_width=True, config={"displayModeBar": False},
-                on_select="rerun", selection_mode="points", key="grafico_situacao",
+                on_select="rerun", selection_mode="points", key=CHART_PIE_KEY,
             )
             pontos_pie = evento_pie.selection.points if evento_pie and evento_pie.selection else []
             if pontos_pie:
-                situacao_clicada = pontos_pie[0].get("label")
+                nova_sit = _extrair_label_pie(pontos_pie, SITUACOES_PIE)
+                if not nova_sit:
+                    custom = pontos_pie[0].get("customdata")
+                    if isinstance(custom, (list, tuple)) and custom:
+                        nova_sit = custom[0]
+                    elif isinstance(custom, str):
+                        nova_sit = custom
+                if nova_sit and nova_sit != st.session_state.get(DRILL_SITUACAO_KEY):
+                    st.session_state[DRILL_SITUACAO_KEY] = nova_sit
+                    st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
+    # Relê drills sanitizados para tabela
+    filial_clicada = st.session_state.get(DRILL_FILIAL_KEY)
+    situacao_clicada = st.session_state.get(DRILL_SITUACAO_KEY)
+    filial_clicada, situacao_clicada = _sanitize_drills(
+        df_base,
+        coluna_grafico1=coluna_grafico1,
+        filial_clicada=filial_clicada,
+        situacao_clicada=situacao_clicada,
+    )
     df_tabela_base = df_filtrado.copy()
+    if filial_clicada:
+        df_tabela_base = df_tabela_base[df_tabela_base[coluna_grafico1].astype(str) == str(filial_clicada)]
+    df_tabela_base = _aplicar_situacao(df_tabela_base, situacao_clicada)
+
     filtros_grafico_ativos = []
     if filial_clicada:
-        df_tabela_base = df_tabela_base[df_tabela_base[coluna_grafico1] == filial_clicada]
         rotulo = "Filial" if perfil == "admin" else "Cliente"
         filtros_grafico_ativos.append(f"{rotulo}: <b>{filial_clicada}</b>")
     if situacao_clicada:
-        if situacao_clicada == "Em aberto":
-            df_tabela_base = df_tabela_base[df_tabela_base["atrasado"]]
-        elif situacao_clicada == "Vencendo hoje":
-            df_tabela_base = df_tabela_base[df_tabela_base["vence_hoje"]]
-        elif situacao_clicada == "Em dia":
-            df_tabela_base = df_tabela_base[~df_tabela_base["atrasado"] & ~df_tabela_base["vence_hoje"]]
         filtros_grafico_ativos.append(f"Situação: <b>{situacao_clicada}</b>")
 
     if filtros_grafico_ativos:
@@ -257,7 +417,7 @@ def render_dashboard() -> None:
             f"<div style='background:#FFF4E0;border:1px solid #F6D9A0;border-radius:10px;"
             f"padding:0.55rem 0.9rem;font-size:0.85rem;color:#8A5A00;margin-bottom:0.8rem;'>"
             f"🔎 Filtro aplicado pelo gráfico — {' · '.join(filtros_grafico_ativos)}. "
-            f"Use \"Limpar seleção dos gráficos\", na barra lateral, para remover.</div>",
+            f"Use \"Limpar seleção dos gráficos\" nos filtros para remover.</div>",
             unsafe_allow_html=True,
         )
 
@@ -314,7 +474,7 @@ def render_dashboard() -> None:
             d1, d2, d3, d4 = st.columns(4)
             with d1:
                 st.caption("Cliente (destinatário)")
-                st.write(entrega["cliente"])
+                st.write(entrega["cliente"] if pd.notna(entrega.get("cliente")) else "-")
                 st.caption("Cidade / UF de entrega")
                 st.write(f"{entrega.get('cidade_entrega', '-')} / {entrega.get('uf_entrega', '-')}")
             with d2:

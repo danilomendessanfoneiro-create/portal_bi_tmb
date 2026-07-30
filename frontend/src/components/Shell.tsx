@@ -37,6 +37,12 @@ export function Shell() {
               <NavLink to="/users" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
                 Usuários
               </NavLink>
+              <NavLink
+                to="/imports"
+                className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
+              >
+                Importação de Dados
+              </NavLink>
               <div className="nav-group">Configurações</div>
               <NavLink
                 to="/settings/smtp"

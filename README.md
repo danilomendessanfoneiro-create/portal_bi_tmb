@@ -24,6 +24,7 @@ Documentação detalhada:
 | [docs/topologia-hibrida.md](docs/topologia-hibrida.md) | Topologia, auth JWT, embed do BI |
 | [docs/deploy-vps.md](docs/deploy-vps.md) | Deploy na VPS |
 | [docs/servico-jobs.md](docs/servico-jobs.md) | Worker de relatórios e automações |
+| [docs/importacao-manual-planilha.md](docs/importacao-manual-planilha.md) | Upload/validação/importação manual |
 | [docs/integracao-api-tmselite.md](docs/integracao-api-tmselite.md) | Integração TMS (futura) |
 | [app/api/README.md](app/api/README.md) | Endpoints da API |
 

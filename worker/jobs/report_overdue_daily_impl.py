@@ -280,6 +280,28 @@ def execute(ctx: JobContext) -> JobResult:
         out_path = ctx.reports_dir / "atrasos_consolidado.csv"
         rows = _write_csv(overdue, out_path)
 
+        snapshot_metrics = {"status": "skipped", "message": "dry_run"}
+        if not ctx.dry_run:
+            from app.services.bi_snapshot_service import BiSnapshotService
+
+            snap = BiSnapshotService().capture_if_absent(
+                ctx.business_date,
+                overdue,
+                actor="worker",
+                source="job",
+                source_job_id=ctx.job_id,
+            )
+            snapshot_metrics = {
+                "status": snap.status,
+                "message": snap.message,
+                "run_id": snap.run_id,
+                "rows": snap.rows,
+            }
+            if snap.status == "failed":
+                ctx.logger.error("Snapshot falhou (e-mail continua): %s", snap.message)
+            else:
+                ctx.logger.info("Snapshot: %s", snap.message)
+
         branch_metrics = _run_phase_branch(ctx, overdue, due_today)
         managerial_metrics = _run_phase_managerial(ctx, overdue, due_today)
 
@@ -287,12 +309,14 @@ def execute(ctx: JobContext) -> JobResult:
             "rows_overdue": rows,
             "rows_due_today": int(len(due_today)),
             "artifact": str(out_path),
+            "snapshot": snapshot_metrics,
             "branch": branch_metrics,
             "managerial": managerial_metrics,
         }
         msg = (
             f"Job concluído. Filiais sent={branch_metrics.get('sent', 0)}; "
-            f"gerencial sent={managerial_metrics.get('sent', 0)}."
+            f"gerencial sent={managerial_metrics.get('sent', 0)}; "
+            f"snapshot={snapshot_metrics.get('status')}."
         )
         return JobResult(status="success", message=msg, metrics=metrics, artifact_path=out_path)
     except Exception as exc:
