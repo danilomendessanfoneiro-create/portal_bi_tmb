@@ -1,5 +1,8 @@
 from .user import UserCreate, UserFilter, UserUpdate
 from .settings import (
+    ApiSettingsCreate,
+    ApiSettingsFilter,
+    ApiSettingsUpdate,
     RecipientCreate,
     RecipientFilter,
     RecipientUpdate,
@@ -18,4 +21,7 @@ __all__ = [
     "RecipientCreate",
     "RecipientUpdate",
     "RecipientFilter",
+    "ApiSettingsCreate",
+    "ApiSettingsUpdate",
+    "ApiSettingsFilter",
 ]

@@ -52,7 +52,7 @@ Documentação detalhada:
 
 ### Relatórios por e-mail (worker)
 
-Job único `report_overdue_daily` com duas fases:
+Job único `report_overdue_daily` com duas fases (fonte: **`prb_deliveries`** via API):
 
 1. **Filiais** — um HTML por e-mail cadastrado no usuário filial; só dados daquela filial.
 2. **Gerencial** — HTML consolidado aos destinatários administrativos (assunto/saudação com o **nome do destinatário**).
@@ -68,9 +68,10 @@ Características:
 
 ### Persistência (PostgreSQL)
 
-Migrations incrementais em `database/migrations/` (até `013`), padrão `prb_*` + `_audit`:
+Migrations incrementais em `database/migrations/` (até `019`), padrão `prb_*` + `_audit`:
 
-- Usuários, SMTP, destinatários, execuções de job, automações (`display_name`, `frequency`, `weekday`, `day_of_month`).
+- Usuários, SMTP, destinatários, execuções de job, automações (`display_name`, `frequency`, `weekday`, `day_of_month`)
+- Integração API (`prb_api_settings`), entregas (`prb_deliveries`), logs (`prb_integration_logs`)
 
 ## Desenvolvimento local
 
@@ -103,15 +104,16 @@ npm run dev
 Abrir: **http://localhost:5173/admin/**  
 Login seed (se não alterado): `admin` / `admin123`
 
-### Worker de relatório
+### Worker de relatório / importação
 
 ```bash
 .\.venv\Scripts\python.exe -m worker list
+.\.venv\Scripts\python.exe -m worker run import_deliveries_initial --dry-run
+.\.venv\Scripts\python.exe -m worker run import_deliveries_daily --force
 .\.venv\Scripts\python.exe -m worker run report_overdue_daily --dry-run
-.\.venv\Scripts\python.exe -m worker run report_overdue_daily --force
 ```
 
-Detalhes: [docs/servico-jobs.md](docs/servico-jobs.md).
+Configurar antes: Admin → Integração API (URL + Bearer). Detalhes: [docs/integracao-api-tmselite.md](docs/integracao-api-tmselite.md).
 
 ### Testes
 

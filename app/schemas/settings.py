@@ -76,3 +76,39 @@ class RecipientFilter:
     page_size: int = 10
     sort_by: str = "name"
     sort_dir: str = "asc"
+
+
+@dataclass
+class ApiSettingsCreate:
+    name: str
+    base_url: str
+    endpoint: str
+    token: str
+    timeout_seconds: int = 60
+    page_size: int = 500
+    initial_load_days: int = 90
+    is_default: bool = False
+    enabled: bool = True
+
+
+@dataclass
+class ApiSettingsUpdate:
+    name: Optional[str] = None
+    base_url: Optional[str] = None
+    endpoint: Optional[str] = None
+    token: Optional[str] = None
+    timeout_seconds: Optional[int] = None
+    page_size: Optional[int] = None
+    initial_load_days: Optional[int] = None
+    is_default: Optional[bool] = None
+    enabled: Optional[bool] = None
+
+
+@dataclass
+class ApiSettingsFilter:
+    search: Optional[str] = None
+    enabled: Optional[bool] = True
+    page: int = 1
+    page_size: int = 10
+    sort_by: str = "name"
+    sort_dir: str = "asc"

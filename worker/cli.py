@@ -27,6 +27,24 @@ def main(argv: list[str] | None = None) -> int:
     run_p.add_argument("--date", dest="business_date", help="Data de negócio YYYY-MM-DD")
     run_p.add_argument("--dry-run", action="store_true", help="Não envia e-mail")
     run_p.add_argument(
+        "--days",
+        type=int,
+        dest="initial_load_days",
+        default=None,
+        help="Override de initial_load_days (só import_deliveries_initial)",
+    )
+    run_p.add_argument(
+        "--csv",
+        dest="csv_path",
+        default=None,
+        help="Caminho do CSV (só import_deliveries_csv)",
+    )
+    run_p.add_argument(
+        "--no-replace",
+        action="store_true",
+        help="Não limpa prb_deliveries antes (só import_deliveries_csv)",
+    )
+    run_p.add_argument(
         "--if-due",
         action="store_true",
         help="Só executa se horário configurado já passou e ainda não houve sucesso no dia",
@@ -51,21 +69,29 @@ def main(argv: list[str] | None = None) -> int:
             logger.error("Job desconhecido: %s", args.job_id)
             print(f"Job desconhecido: {args.job_id}", file=sys.stderr)
             return 2
+        days = args.initial_load_days
+        if days is not None and days <= 0:
+            print("--days deve ser um inteiro positivo", file=sys.stderr)
+            return 2
         ctx = JobContext(
             job_id=spec.job_id,
             business_date=parse_business_date(args.business_date),
             force=bool(args.force),
             dry_run=bool(args.dry_run),
             if_due=bool(args.if_due),
+            initial_load_days=days,
+            csv_path=args.csv_path,
+            replace_csv=not bool(args.no_replace),
             logger=logger,
         )
         logger.info(
-            "start job=%s date=%s force=%s dry_run=%s if_due=%s",
+            "start job=%s date=%s force=%s dry_run=%s if_due=%s days=%s",
             ctx.job_id,
             ctx.business_date,
             ctx.force,
             ctx.dry_run,
             ctx.if_due,
+            ctx.initial_load_days,
         )
         result = spec.run(ctx)
         logger.info(

@@ -1,0 +1,11 @@
+[Unit]
+Description=Timer — Portal BI import API diário (verifica a cada 15 min)
+Requires=portal-job-import.service
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+Unit=portal-job-import.service
+
+[Install]
+WantedBy=timers.target

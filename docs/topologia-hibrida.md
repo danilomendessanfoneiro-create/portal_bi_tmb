@@ -42,7 +42,8 @@ Futuro: trocar o alvo do iframe de Streamlit para Apache Superset sem mudar o sh
 |---|---|---|
 | API | `portal-api.service` | 8000 |
 | BI | `portal-bi.service` | 8501 |
-| Job relatório | `portal-job-report.timer` | CLI worker `--if-due` |
+| Job relatório | `portal-job-report.timer` | CLI `report_overdue_daily --if-due` |
+| Job import API | `portal-job-import.timer` | CLI `import_deliveries_daily --if-due` |
 | Admin | nginx static | — |
 | DB | postgresql | 5432 |
 

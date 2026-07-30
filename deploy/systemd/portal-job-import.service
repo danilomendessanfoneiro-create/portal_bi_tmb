@@ -1,0 +1,14 @@
+[Unit]
+Description=Portal BI TMB — job import_deliveries_daily (if-due)
+After=network.target postgresql.service portal-api.service
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/portal-bi-tmb
+EnvironmentFile=/opt/portal-bi-tmb/.env
+ExecStart=/opt/portal-bi-tmb/.venv/bin/python -m worker run import_deliveries_daily --if-due
+
+[Install]
+WantedBy=multi-user.target

@@ -20,8 +20,11 @@ export function SettingsPage() {
         <NavLink to="/settings/recipients" className="nav-link" style={{ color: "var(--navy)" }}>
           Destinatários de E-mail — relatórios automáticos
         </NavLink>
+        <NavLink to="/settings/api-integration" className="nav-link" style={{ color: "var(--navy)" }}>
+          Integração API — TMS Elite
+        </NavLink>
         <NavLink to="/settings/schedules" className="nav-link" style={{ color: "var(--navy)" }}>
-          Automações — horários dos relatórios
+          Automações — horários dos relatórios e importações
         </NavLink>
       </div>
     </div>

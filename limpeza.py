@@ -177,41 +177,20 @@ def remover_duplicados_e_invalidos(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# Etapa 5: calcular atraso
+# Etapa 5: regras das macros Excel (calc1/calc2) — paridade 100%
 # ---------------------------------------------------------------------------
 
 def calcular_atraso(df: pd.DataFrame, data_referencia: datetime | None = None) -> pd.DataFrame:
     """
-    Regra combinada com o cliente:
-    - Prazo considerado = o MAIOR entre Dt. Prazo Atual e Dt. Agendamento
-    - Fica de fora do calculo (nunca e' "atrasado"):
-        * entregas ja canceladas (dt_cancelamento preenchida)
-        * entregas ja entregues (dt_entrega preenchida)
-    - Esta atrasado quando: prazo considerado < data de referencia (hoje)
+    Aplica regras de negócio das macros VBA (fonte da verdade confirmada):
+    - Exclui 5 clientes do calc1
+    - STATUS PRAZO só com Dt. Prazo Atual (não usa Dt. Agendamento)
+    - RETORNO FILIAL vazio (existe na macro, cliente não usa)
+    - atrasado / vence_hoje derivados do STATUS PRAZO
     """
-    df = df.copy()
-    hoje = pd.Timestamp(data_referencia or datetime.now().date())
+    from app.services.macro_delivery_rules import aplicar_regras_macros
 
-    df["prazo_considerado"] = df[["dt_prazo_atual", "dt_agendamento"]].max(axis=1)
-
-    df["cancelada"] = df["dt_cancelamento"].notna()
-    df["entregue"] = df["dt_entrega"].notna()
-
-    elegivel = ~df["cancelada"] & ~df["entregue"] & df["prazo_considerado"].notna()
-
-    df["atrasado"] = elegivel & (df["prazo_considerado"] < hoje)
-
-    df["dias_atraso"] = np.where(
-        df["atrasado"],
-        (hoje - df["prazo_considerado"]).dt.days,
-        0,
-    )
-
-    # Vence hoje: ainda nao atrasada, mas o prazo considerado cai exatamente hoje
-    df["vence_hoje"] = elegivel & (df["prazo_considerado"].dt.date == hoje.date())
-
-    return df
-
+    return aplicar_regras_macros(df, data_referencia=data_referencia)
 
 # ---------------------------------------------------------------------------
 # Pipeline completo
@@ -221,6 +200,72 @@ def processar_planilha(caminho_arquivo: str, data_referencia: datetime | None = 
     df = carregar_dados_brutos(caminho_arquivo)
     df = selecionar_colunas(df)
     df = tratar_tipos(df)
+    df = remover_duplicados_e_invalidos(df)
+    df = calcular_atraso(df, data_referencia=data_referencia)
+    return df
+
+
+def carregar_dados_postgres() -> pd.DataFrame:
+    """Carrega entregas importadas da API (prb_deliveries)."""
+    from app.repositories.delivery_repository import DeliveryRepository
+
+    rows = DeliveryRepository().list_for_bi()
+    if not rows:
+        raise FileNotFoundError(
+            "Nenhuma entrega em prb_deliveries. Execute o job de importação da API."
+        )
+    df = pd.DataFrame(rows)
+    # Aliases já batem com COLUNAS_UTEIS renomeadas
+    keep = [
+        "nro_entrega",
+        "nota_fiscal",
+        "cliente",
+        "filial",
+        "cidade_entrega",
+        "uf_entrega",
+        "status",
+        "valor_total",
+        "qtde_volumes",
+        "dt_prazo_atual",
+        "dt_agendamento",
+        "dt_entrega",
+        "dt_cancelamento",
+        "motivo_cancelamento",
+        "motivo_atraso",
+        "nome_recebedor",
+        "dt_cadastro",
+        "motorista",
+        "remetente",
+        "cidade_remetente",
+        "uf_remetente",
+        "peso_taxado",
+        "peso_informado",
+    ]
+    for col in keep:
+        if col not in df.columns:
+            df[col] = np.nan
+    return df[keep].copy()
+
+
+def processar_entregas(data_referencia: datetime | None = None) -> pd.DataFrame:
+    """
+    Fonte operacional do BI: Postgres (API).
+    CSV deixa de ser usado no fluxo normal.
+    """
+    df = carregar_dados_postgres()
+    # Datas já vêm tipadas do PG; normaliza com tratar_tipos quando string
+    for col in COLUNAS_DATA:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce")
+    if "valor_total" in df.columns:
+        df["valor_total"] = pd.to_numeric(df["valor_total"], errors="coerce")
+    for col in ["qtde_volumes", "peso_taxado", "peso_informado"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    for col in ["cliente", "filial", "status", "cidade_entrega", "uf_entrega",
+                "motorista", "remetente", "cidade_remetente", "uf_remetente", "nro_entrega"]:
+        if col in df.columns:
+            df[col] = df[col].astype(str).str.strip().replace({"nan": np.nan, "None": np.nan})
     df = remover_duplicados_e_invalidos(df)
     df = calcular_atraso(df, data_referencia=data_referencia)
     return df

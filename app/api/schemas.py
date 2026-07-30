@@ -162,4 +162,50 @@ class RecipientListResponse(BaseModel):
     page_size: int
 
 
+class ApiSettingsOut(BaseModel):
+    id: int
+    name: str
+    base_url: str
+    endpoint: str
+    timeout_seconds: int = 60
+    page_size: int = 500
+    initial_load_days: int = 90
+    is_default: bool = False
+    enabled: bool = True
+    has_token: bool = True
+    created_on: Optional[datetime] = None
+    modified_on: Optional[datetime] = None
+
+
+class ApiSettingsCreateBody(BaseModel):
+    name: str
+    base_url: str
+    endpoint: str
+    token: str
+    timeout_seconds: int = 60
+    page_size: int = 500
+    initial_load_days: int = 90
+    is_default: bool = False
+    enabled: bool = True
+
+
+class ApiSettingsUpdateBody(BaseModel):
+    name: Optional[str] = None
+    base_url: Optional[str] = None
+    endpoint: Optional[str] = None
+    token: Optional[str] = None
+    timeout_seconds: Optional[int] = None
+    page_size: Optional[int] = None
+    initial_load_days: Optional[int] = None
+    is_default: Optional[bool] = None
+    enabled: Optional[bool] = None
+
+
+class ApiSettingsListResponse(BaseModel):
+    items: list[ApiSettingsOut]
+    total: int
+    page: int
+    page_size: int
+
+
 TokenResponse.model_rebuild()

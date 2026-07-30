@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routers import auth, recipients, schedules, smtp, users
+from app.api.routers import api_integration, auth, recipients, schedules, smtp, users
 from app.config import settings
 
 app = FastAPI(
@@ -39,6 +39,7 @@ app.include_router(users.router, prefix="/api")
 app.include_router(smtp.router, prefix="/api")
 app.include_router(recipients.router, prefix="/api")
 app.include_router(schedules.router, prefix="/api")
+app.include_router(api_integration.router, prefix="/api")
 
 
 @app.get("/api/health")

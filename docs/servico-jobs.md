@@ -40,15 +40,18 @@ Jobs auxiliares:
 
 | job_id | Status |
 |--------|--------|
-| `import_deliveries` | Stub (API futura) |
-| `report_overdue_daily` | Executor das duas fases |
+| `import_deliveries` | Alias da atualização diária |
+| `import_deliveries_initial` | Carga inicial API (initial_load_days) |
+| `import_deliveries_daily` | Sync diário por dataCadastro |
+| `report_overdue_daily` | Executor das duas fases de e-mail |
 
 ## Pré-requisitos para envio real
 
 1. SMTP padrão ativo em Configurações → SMTP
 2. Usuários filial com `report_emails` (Fase A)
 3. Destinatários com “relatório diário” ativos (Fase B)
-4. Migrations aplicadas até `013`
+4. Migrations aplicadas até `019`
+5. Configuração padrão em **Integração API** + dados em `prb_deliveries`
 
 ## Admin
 
@@ -60,11 +63,18 @@ Jobs auxiliares:
 ```bash
 sudo cp deploy/systemd/portal-job-report.service /etc/systemd/system/
 sudo cp deploy/systemd/portal-job-report.timer /etc/systemd/system/
+sudo cp deploy/systemd/portal-job-import.service /etc/systemd/system/
+sudo cp deploy/systemd/portal-job-import.timer /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now portal-job-report.timer
+sudo systemctl enable --now portal-job-report.timer portal-job-import.timer
 sudo systemctl list-timers | grep portal-job
 ```
 
-O timer dispara a cada 15 minutos; o worker com `--if-due` respeita cada automação.
+| Timer | Job |
+|-------|-----|
+| `portal-job-report.timer` | `report_overdue_daily --if-due` |
+| `portal-job-import.timer` | `import_deliveries_daily --if-due` |
+
+Os timers disparam a cada 15 minutos; o worker com `--if-due` respeita o horário de cada automação no Admin. Carga inicial: `import_deliveries_initial --force` (manual, one-shot).
 
 Ver PRD: `tasks/prd-ajustes-envio-relatorios-automacoes.md`

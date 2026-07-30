@@ -40,3 +40,21 @@ class EmailRecipient:
     modified_by: Optional[str] = None
     modified_on: Optional[datetime] = None
     enabled: bool = True
+
+
+@dataclass
+class ApiSettings:
+    id: Optional[int]
+    name: str
+    base_url: str
+    endpoint: str
+    token_encrypted: str
+    timeout_seconds: int = 60
+    page_size: int = 500
+    initial_load_days: int = 90
+    is_default: bool = False
+    created_by: Optional[str] = None
+    created_on: Optional[datetime] = None
+    modified_by: Optional[str] = None
+    modified_on: Optional[datetime] = None
+    enabled: bool = True

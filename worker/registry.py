@@ -41,4 +41,5 @@ def list_jobs() -> list[JobSpec]:
 def load_builtin_jobs() -> None:
     """Import job modules so @register side effects run."""
     from worker.jobs import import_deliveries as _imp  # noqa: F401
+    from worker.jobs import import_deliveries_csv as _imp_csv  # noqa: F401
     from worker.jobs import report_overdue_daily as _rep  # noqa: F401

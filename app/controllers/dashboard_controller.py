@@ -8,11 +8,10 @@ import plotly.graph_objects as go
 import streamlit as st
 from zoneinfo import ZoneInfo
 
-from app.config import settings
 from app.controllers.navigation import render_sidebar_nav
 from app.services.access_scope_service import AccessScopeError, AccessScopeService
 from app.utils.style import kpi_card
-from limpeza import processar_planilha
+from limpeza import processar_entregas
 
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 
@@ -22,8 +21,8 @@ def agora_br() -> pd.Timestamp:
 
 
 @st.cache_data(ttl=600)
-def _carregar_dados(caminho: str, data_ref):
-    return processar_planilha(caminho, data_referencia=data_ref)
+def _carregar_dados(data_ref):
+    return processar_entregas(data_referencia=data_ref)
 
 
 def render_dashboard() -> None:
@@ -40,12 +39,9 @@ def render_dashboard() -> None:
         return
 
     try:
-        df = _carregar_dados(str(settings.data_csv), hoje.date())
-    except FileNotFoundError:
-        st.error(
-            f"Arquivo de dados não encontrado em `{settings.data_csv}`. "
-            "Atualize a planilha nessa pasta do repositório."
-        )
+        df = _carregar_dados(hoje.date())
+    except FileNotFoundError as exc:
+        st.error(str(exc))
         return
 
     try:
@@ -59,10 +55,17 @@ def render_dashboard() -> None:
     branch_filter = scope.resolve_branch_filter(viewer, filtros.filtro_filial)
 
     limite = hoje - pd.Timedelta(days=filtros.tolerancia)
-    elegivel = ~df["cancelada"] & ~df["entregue"] & df["prazo_considerado"].notna()
     df = df.copy()
-    df["atrasado"] = elegivel & (df["prazo_considerado"] < limite)
-    df["dias_atraso"] = np.where(df["atrasado"], (hoje - df["prazo_considerado"]).dt.days, 0)
+    # Paridade macros: base = Dt. Prazo Atual; tolerância da UI só atrasa o corte
+    df["atrasado"] = df["prazo_considerado"].notna() & (df["prazo_considerado"] < limite)
+    df["dias_atraso"] = np.where(
+        df["atrasado"],
+        (hoje - df["prazo_considerado"]).dt.days,
+        0,
+    )
+    df["vence_hoje"] = df["prazo_considerado"].notna() & (
+        df["prazo_considerado"].dt.date == hoje.date()
+    )
 
     df_filtrado = df.copy()
     if branch_filter:

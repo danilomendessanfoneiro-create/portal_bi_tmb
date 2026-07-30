@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from limpeza import processar_planilha
+from limpeza import processar_entregas
 from app.services.job_schedule_service import (
     AUTOMATION_BRANCH,
     AUTOMATION_MANAGERIAL,
@@ -45,7 +45,8 @@ CSV_COLUMNS = [
 
 
 def _load_frames(csv_path: Path, business_date: date) -> tuple[pd.DataFrame, pd.DataFrame]:
-    df = processar_planilha(str(csv_path), data_referencia=business_date)
+    del csv_path  # fonte operacional = Postgres
+    df = processar_entregas(data_referencia=business_date)
     overdue = df[df["atrasado"]].copy()
     due_today = df[df["vence_hoje"]].copy()
     for frame in (overdue, due_today):
@@ -275,9 +276,6 @@ def _run_phase_managerial(
 
 def execute(ctx: JobContext) -> JobResult:
     try:
-        if not ctx.data_csv.exists():
-            raise FileNotFoundError(f"CSV não encontrado: {ctx.data_csv}")
-
         overdue, due_today = _load_frames(ctx.data_csv, ctx.business_date)
         out_path = ctx.reports_dir / "atrasos_consolidado.csv"
         rows = _write_csv(overdue, out_path)

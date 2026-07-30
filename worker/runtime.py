@@ -21,6 +21,9 @@ class JobContext:
     force: bool = False
     dry_run: bool = False
     if_due: bool = False
+    initial_load_days: Optional[int] = None
+    csv_path: Optional[str] = None
+    replace_csv: bool = True
     logger: logging.Logger = field(default_factory=lambda: logging.getLogger("worker"))
 
     @property
