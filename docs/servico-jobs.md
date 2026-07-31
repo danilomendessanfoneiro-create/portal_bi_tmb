@@ -77,17 +77,35 @@ sudo systemctl list-timers | grep portal-job
 
 Os timers disparam a cada 15 minutos; o worker com `--if-due` respeita o horário de cada automação no Admin. Carga inicial: `import_deliveries_initial --force` (manual, one-shot).
 
-Após **importação manual de planilha** no Admin, o sistema dispara em background:
+O disparo manual de e-mails **não** é automático após import de planilha. No Admin → Importação de Dados, o botão **Disparar Envio de E-mails** chama em background:
 
 ```bash
 python -m worker run report_overdue_daily --force
 ```
 
-(`--force` ignora a janela horária; detalhes em [importacao-manual-planilha.md](importacao-manual-planilha.md).)
+(`--force` ignora a janela horária; o conteúdo usa o **lote ativo** — ver [importacao-manual-planilha.md](importacao-manual-planilha.md) e [paridade-lote-ativo-macros.md](paridade-lote-ativo-macros.md).)
 
 ## Snapshots históricos (BI Histórico)
 
-Antes dos e-mails, `report_overdue_daily` grava um snapshot imutável em `prb_bi_snapshot_run` / `prb_bi_snapshot_overdue` (1× por `business_date`). A aba **Histórico** no Streamlit consome essas tabelas.
+Antes dos e-mails, `report_overdue_daily` grava um snapshot em `prb_bi_snapshot_run` / `prb_bi_snapshot_overdue` via `capture_if_absent` (1× por `business_date` se ainda não existir). A aba **Histórico** no Streamlit consome essas tabelas.
+
+A **importação manual** de planilha **recalcula** o snapshot do dia (`capture_replace`), alinhado ao lote ativo da planilha. O job agendado **não** sobrescreve se o dia já tiver snapshot.
+
+### Lote ativo
+
+Operacional, e-mails e captura pós-import leem somente o lote ativo (`dataset_batch_id` da última planilha `imported`, ou `dataset_sync_id` da última sync API). Detalhes: [paridade-lote-ativo-macros.md](paridade-lote-ativo-macros.md).
+
+### Detalhe do dia (drill-down)
+
+Na aba **Histórico**, o usuário pode **clicar numa barra** (ou usar o selectbox **Dia para detalhar**) para abrir o **Detalhe do dia**:
+
+- Fonte: somente `prb_bi_snapshot_overdue` da `business_date` (atrasados da foto)
+- KPIs: qtde em atraso, valor total, média de dias em atraso
+- Breakdown por filial (admin) ou cliente (perfil filial), com drill por clique
+- Tabela ordenada por `dias_atraso` desc, incluindo `status_prazo`
+- **Não** reconstrói “vence hoje” / “em dia” a partir de `prb_deliveries`
+
+PRD: `tasks/prd-drilldown-dashboard-historico.md` · plano: `.atlas/plans/2026-07-31-drilldown-dashboard-historico.md`
 
 Demo (dados fake, não mistura com `source=job`):
 

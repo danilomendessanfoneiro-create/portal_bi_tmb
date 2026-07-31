@@ -45,6 +45,7 @@ def _execute_mode(ctx: JobContext, *, mode: str) -> JobResult:
                 actor="worker",
                 job_id=job_id,
                 initial_load_days=ctx.initial_load_days,
+                dataset_sync_id=run_id,
             )
         else:
             result = svc.run_daily(
@@ -52,6 +53,7 @@ def _execute_mode(ctx: JobContext, *, mode: str) -> JobResult:
                 dry_run=ctx.dry_run,
                 actor="worker",
                 job_id=job_id,
+                dataset_sync_id=run_id,
             )
 
         status = "success" if result.status in {"success", "partial"} else "failed"

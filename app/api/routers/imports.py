@@ -8,8 +8,15 @@ from typing import Annotated, Any, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 
 from app.api.deps import require_admin
-from app.api.schemas import ImportBatchListResponse, ImportBatchOut, ImportErrorOut
+from app.api.schemas import (
+    ActiveDatasetOut,
+    ImportBatchListResponse,
+    ImportBatchOut,
+    ImportErrorOut,
+    MessageOut,
+)
 from app.models import User
+from app.services.active_dataset_service import ActiveDatasetService
 from app.services.manual_import_service import ManualImportError, ManualImportService
 
 router = APIRouter(prefix="/imports", tags=["imports"])
@@ -76,6 +83,25 @@ def list_batches(
         page=page,
         page_size=page_size,
     )
+
+
+@router.get("/active-dataset", response_model=ActiveDatasetOut)
+def get_active_dataset(
+    admin: Annotated[User, Depends(require_admin)],
+) -> ActiveDatasetOut:
+    data = ActiveDatasetService().resolve().to_dict()
+    return ActiveDatasetOut(**data)
+
+
+@router.post("/dispatch-emails", response_model=MessageOut)
+def dispatch_report_emails(
+    admin: Annotated[User, Depends(require_admin)],
+) -> MessageOut:
+    try:
+        result = ManualImportService().dispatch_report_emails(actor=admin.login)
+    except ManualImportError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return MessageOut(detail=str(result.get("message") or "Envio de e-mails disparado. Os relatórios serão enviados em segundo plano."))
 
 
 @router.post("/upload", response_model=ImportBatchOut, status_code=status.HTTP_201_CREATED)

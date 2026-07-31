@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -23,6 +22,7 @@ from limpeza import processar_entregas
 
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 SITUACOES_PIE = ["Em aberto", "Vencendo hoje", "Em dia"]
+BI_TAB_KEY = "bi_active_tab"
 
 
 def agora_br() -> pd.Timestamp:
@@ -30,8 +30,37 @@ def agora_br() -> pd.Timestamp:
 
 
 @st.cache_data(ttl=600)
-def _carregar_dados(data_ref):
+def _carregar_dados(data_ref, dataset_key: str):
     return processar_entregas(data_referencia=data_ref)
+
+
+def _dataset_cache_key() -> str:
+    from app.services.active_dataset_service import ActiveDatasetService
+
+    active = ActiveDatasetService().resolve()
+    if active.is_empty:
+        return "empty"
+    if active.source == "manual_import":
+        return f"manual:{active.batch_id}"
+    return f"api:{active.sync_id}"
+
+
+def _render_active_dataset_banner() -> None:
+    from app.services.active_dataset_service import ActiveDatasetService
+
+    active = ActiveDatasetService().resolve()
+    if active.is_empty:
+        st.warning(active.empty_reason or "Nenhum lote ativo para análise.")
+        return
+    origem = "Planilha" if active.source == "manual_import" else "API"
+    quando = ""
+    if active.activated_on is not None:
+        try:
+            quando = f" · {active.activated_on:%d/%m/%Y %H:%M}"
+        except Exception:
+            quando = f" · {active.activated_on}"
+    linhas = f" · {active.row_count} entregas" if active.row_count is not None else ""
+    st.info(f"Lote ativo: **{origem}** — {active.label}{quando}{linhas}")
 
 
 def render_dashboard() -> None:
@@ -47,13 +76,22 @@ def render_dashboard() -> None:
         st.error(str(exc))
         return
 
-    tab_op, tab_hist = st.tabs(["Operacional", "Histórico"])
-    with tab_hist:
+    # st.tabs reseta para a 1ª aba a cada rerun — radio horizontal persiste a escolha
+    if BI_TAB_KEY not in st.session_state:
+        st.session_state[BI_TAB_KEY] = "Operacional"
+    aba = st.radio(
+        "Visão",
+        ["Operacional", "Histórico"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key=BI_TAB_KEY,
+    )
+
+    if aba == "Histórico":
         from app.controllers.history_controller import render_historico
 
         render_historico(viewer=viewer, scope=scope, hoje=hoje.date())
-
-    with tab_op:
+    else:
         _render_operacional(
             viewer=viewer,
             scope=scope,
@@ -73,6 +111,32 @@ def _aplicar_situacao(df: pd.DataFrame, situacao: str | None) -> pd.DataFrame:
     if situacao == "Em dia":
         return df[~df["atrasado"] & ~df["vence_hoje"]]
     return df
+
+
+def _filtrar_prazo_considerado(
+    df: pd.DataFrame,
+    data_inicial: date | None,
+    data_final: date | None,
+) -> pd.DataFrame:
+    """
+    Após normalização: apenas atrasados cuja data do prazo (prazo_considerado)
+    está no intervalo. Não usa data de importação/atualização.
+    - ini + fim → inclusive entre as duas
+    - só ini → prazo >= ini
+    - ini == fim → exatamente aquele dia
+    """
+    if data_inicial is None and data_final is None:
+        return df
+    out = df[df["atrasado"].fillna(False)].copy()
+    if out.empty or "prazo_considerado" not in out.columns:
+        return out
+    pc = pd.to_datetime(out["prazo_considerado"], errors="coerce")
+    mask = pc.notna()
+    if data_inicial is not None:
+        mask &= pc.dt.normalize() >= pd.Timestamp(data_inicial)
+    if data_final is not None:
+        mask &= pc.dt.normalize() <= pd.Timestamp(data_final)
+    return out.loc[mask]
 
 
 def _extrair_label_pie(pontos: list, labels: list[str]) -> str | None:
@@ -144,7 +208,7 @@ def _sanitize_drills(
 
 def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
     try:
-        df = _carregar_dados(hoje.date())
+        df = _carregar_dados(hoje.date(), _dataset_cache_key())
     except FileNotFoundError as exc:
         st.error(str(exc))
         return
@@ -172,6 +236,8 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
             unsafe_allow_html=True,
         )
 
+    _render_active_dataset_banner()
+
     datas_validas = df["prazo_considerado"].dropna()
     periodo_bounds = None
     if not datas_validas.empty:
@@ -188,17 +254,8 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
 
     branch_filter = [str(x).strip() for x in (scope.resolve_branch_filter(viewer, filtros.filtro_filial) or []) if x]
 
-    limite = hoje - pd.Timedelta(days=filtros.tolerancia)
+    # atrasado / vence_hoje / dias_atraso já vêm das macros (Dt. Prazo Atual vs hoje)
     df = df.copy()
-    df["atrasado"] = df["prazo_considerado"].notna() & (df["prazo_considerado"] < limite)
-    df["dias_atraso"] = np.where(
-        df["atrasado"],
-        (hoje - df["prazo_considerado"]).dt.days,
-        0,
-    )
-    df["vence_hoje"] = df["prazo_considerado"].notna() & (
-        df["prazo_considerado"].dt.date == hoje.date()
-    )
 
     # Recorte dimensional (sem situação) — base dos 4 KPIs
     df_base = df.copy()
@@ -216,12 +273,14 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
             df_base["nota_fiscal"].astype(str).str.lower().str.contains(b, na=False)
             | df_base["cliente"].astype(str).str.lower().str.contains(b, na=False)
         ]
-    if filtros.filtro_periodo and len(filtros.filtro_periodo) == 2:
-        ini = _as_python_date(filtros.filtro_periodo[0])
-        fim = _as_python_date(filtros.filtro_periodo[1])
-        if ini and fim:
-            prazos = df_base["prazo_considerado"].dt.date
-            df_base = df_base[prazos.between(ini, fim) | df_base["prazo_considerado"].isna()]
+    if filtros.filtro_periodo:
+        ini = _as_python_date(filtros.filtro_periodo[0]) if len(filtros.filtro_periodo) >= 1 else None
+        fim = (
+            _as_python_date(filtros.filtro_periodo[1])
+            if len(filtros.filtro_periodo) >= 2
+            else None
+        )
+        df_base = _filtrar_prazo_considerado(df_base, ini, fim)
 
     # Situação do painel só afeta gráficos/tabela (não zera os cards irmãos)
     df_filtrado = _aplicar_situacao(df_base, filtros.situacao)
@@ -496,20 +555,27 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
                 st.caption("Motorista")
                 st.write(entrega.get("motorista") if pd.notna(entrega.get("motorista")) else "Não informado")
 
-            e1, e2, e3, e4, e5 = st.columns(5)
+            e1, e2, e3, e4, e5, e6 = st.columns(6)
             with e1:
                 st.caption("Data de entrada no sistema")
                 st.write(f"{entrega['dt_cadastro']:%d/%m/%Y %H:%M}" if pd.notna(entrega.get("dt_cadastro")) else "-")
             with e2:
+                st.caption("Data de recebimento")
+                st.write(
+                    f"{entrega['dt_recebimento']:%d/%m/%Y %H:%M}"
+                    if pd.notna(entrega.get("dt_recebimento"))
+                    else "-"
+                )
+            with e3:
                 st.caption("Data de entrega")
                 st.write(f"{entrega['dt_entrega']:%d/%m/%Y}" if pd.notna(entrega.get("dt_entrega")) else "-")
-            with e3:
+            with e4:
                 st.caption("Prazo atual")
                 st.write(f"{entrega['dt_prazo_atual']:%d/%m/%Y}" if pd.notna(entrega["dt_prazo_atual"]) else "-")
-            with e4:
+            with e5:
                 st.caption("Agendamento")
                 st.write(f"{entrega['dt_agendamento']:%d/%m/%Y}" if pd.notna(entrega["dt_agendamento"]) else "-")
-            with e5:
+            with e6:
                 st.caption("Status no sistema")
                 st.write(entrega["status"])
             if pd.notna(entrega.get("motivo_atraso")):

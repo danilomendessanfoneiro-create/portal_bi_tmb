@@ -189,7 +189,7 @@ source .venv/bin/activate
 python database/deploy/run_migrations.py
 ```
 
-Confirme que rodou até a migration mais recente (ex.: `019_...`). Em atualizações, rode **sempre** após o `git pull`.
+Confirme que rodou até a migration mais recente (ex.: `030_add_active_dataset_columns.sql`). Em atualizações, rode **sempre** após o `git pull`.
 
 ---
 
@@ -381,6 +381,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 python database/deploy/run_migrations.py
 
+# Após migrations 027–030 (lote ativo / cliente_conta / dt_recebimento):
+# reimporte a planilha do dia no Admin para etiquetar o lote e recalcular o Histórico.
+
 cd frontend && npm ci && npm run build && cd ..
 
 sudo systemctl start portal-api portal-bi
@@ -440,6 +443,8 @@ Migrations SQL são incrementais — **não** reverta migration já aplicada sem
 | Admin 404 assets | `frontend/dist` existe? `alias` nginx |
 | Erro DB | `DATABASE_URL`, senha, `pg_isready`, grants |
 | Job não dispara | `systemctl list-timers`; Automações no Admin; `--force` manual |
+| BI Operacional vazio / “nenhum lote ativo” | Reimporte a planilha (marca `dataset_batch_id`) ou rode sync API |
+| Histórico do dia desatualizado após planilha | Import deve usar `capture_replace`; confirme migration e reimporte |
 | 401 TMS Elite | token sem prefixo `Bearer `; config padrão ativa |
 
 ---

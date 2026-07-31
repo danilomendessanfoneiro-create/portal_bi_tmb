@@ -27,20 +27,24 @@ Solução de **Business Intelligence (BI)** para acompanhamento visual do desemp
    - **Unidade/filial:** visualiza apenas o recorte da sua unidade (quando aplicável).
 3. O painel exibe indicadores (KPIs), gráficos e tabela filtrável.
 4. Filtros típicos: período, unidade, cliente, busca por nota/entrega.
-5. **Simulador de tolerância:** permite testar “e se houvesse N dias a mais de prazo?” sem alterar a regra oficial.
-6. Clique em uma entrega abre o detalhe (datas, valor, status, motivo de atraso quando disponível).
+5. Clique em uma entrega abre o detalhe (datas, valor, status, motivo de atraso quando disponível).
+6. Aba **Histórico:** evolução diária de atrasos (snapshots). Clique em um dia (ou use **Dia para detalhar**) abre o **Detalhe do dia** — KPIs, breakdown e registros só das entregas em atraso daquela fotografia (não reconstrói “vence hoje”/“em dia”). Ver `tasks/prd-drilldown-dashboard-historico.md`.
 
 ### A.3 Regra de negócio central (atraso)
 
-Definida com o cliente e implementada no sistema:
+Definida com o cliente e implementada no sistema (**paridade macros Excel calc1**):
 
-| Conceito | Regra |
+| Conceito | Regra atual (código) |
 |---|---|
-| Prazo considerado | Maior data entre **prazo atual** e **agendamento** |
-| Fora do cálculo | Entregas **canceladas** ou já **entregues** |
-| Atrasada | Prazo considerado **anterior** a “hoje” (fuso America/Sao_Paulo) |
-| Vencendo hoje | Prazo considerado **igual** a hoje (não conta como atraso) |
-| Status textual | Exibido na tela; **não** define atraso sozinho |
+| Prazo considerado | Igual a **Dt. Prazo Atual** (`dt_prazo_atual`) — **não** usa mais `max(prazo, agendamento)` |
+| Fonte do campo | Planilha/API → coluna `Dt. Prazo Atual` / `dt_prazo_atual` |
+| Onde é calculado | Pipeline `limpeza.processar_entregas` → `calcular_atraso` → `macro_delivery_rules.aplicar_regras_macros` |
+| STATUS PRAZO | Classificação só com `dt_prazo_atual` vs data de referência (hoje BR) |
+| Atrasada (macros) | `status_prazo == 01_ATRASO` (prazo &lt; hoje) |
+| Vencendo hoje (macros) | `status_prazo == 02_VENCENDO HOJE` |
+| No Dashboard Operacional | Mesma regra das macros; filtro **Prazo considerado** = atrasados com data do prazo no intervalo (após normalização) |
+
+> Nota: a regra antiga documentada como `max(dt_prazo_atual, dt_agendamento)` foi substituída pela paridade Excel (somente prazo atual).
 
 ### A.4 Origem dos dados (hoje e evolução)
 

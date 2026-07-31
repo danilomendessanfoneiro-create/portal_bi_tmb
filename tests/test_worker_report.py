@@ -144,5 +144,8 @@ def test_build_report_html_empty_and_subject():
         due_today=pd.DataFrame(),
     )
     assert "Nenhuma nota fiscal nesta situação." in html
+    assert "Olá, bom dia!" in html
     assert "SPO" in html
+    assert "canhotos" in html
+    assert "até as 16h00" not in html
     assert build_report_subject("Maria") == "Relatório de Entregas - Maria"

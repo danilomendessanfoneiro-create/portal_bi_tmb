@@ -127,6 +127,19 @@ class BiSnapshotRepository:
             ).fetchall()
         return len(rows)
 
+    def delete_run_by_business_date(self, business_date: date) -> Optional[int]:
+        """Remove o snapshot do dia (overdue via ON DELETE CASCADE)."""
+        with get_connection() as conn:
+            row = conn.execute(
+                """
+                DELETE FROM prb_bi_snapshot_run
+                WHERE business_date = %s
+                RETURNING id
+                """,
+                [business_date],
+            ).fetchone()
+        return int(row["id"]) if row else None
+
     def aggregate_overdue_by_day(
         self,
         *,
@@ -165,6 +178,50 @@ class BiSnapshotRepository:
             WHERE {' AND '.join(where)}
             GROUP BY o.business_date
             ORDER BY o.business_date
+        """
+        with get_connection() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+
+    def list_overdue_for_day(
+        self,
+        *,
+        business_date: date,
+        filiais: Optional[list[str]] = None,
+        clientes: Optional[list[str]] = None,
+        cidades: Optional[list[str]] = None,
+        busca: Optional[str] = None,
+    ) -> list[dict[str, Any]]:
+        where = [
+            "o.enabled = TRUE",
+            "r.enabled = TRUE",
+            "o.business_date = %s",
+        ]
+        params: list[Any] = [business_date]
+        if filiais:
+            where.append("o.filial = ANY(%s)")
+            params.append(list(filiais))
+        if clientes:
+            where.append("o.cliente = ANY(%s)")
+            params.append(list(clientes))
+        if cidades:
+            where.append("o.cidade_entrega = ANY(%s)")
+            params.append(list(cidades))
+        if busca and busca.strip():
+            term = f"%{busca.strip()}%"
+            where.append("(o.nota_fiscal ILIKE %s OR o.cliente ILIKE %s)")
+            params.extend([term, term])
+
+        sql = f"""
+            SELECT
+                o.business_date, o.remessa_numero, o.nro_entrega, o.nota_fiscal,
+                o.filial, o.cliente, o.cidade_entrega, o.uf_entrega,
+                o.status, o.motorista, o.dias_atraso, o.valor_total,
+                o.prazo_considerado, o.status_prazo
+            FROM prb_bi_snapshot_overdue o
+            INNER JOIN prb_bi_snapshot_run r ON r.id = o.snapshot_run_id
+            WHERE {' AND '.join(where)}
+            ORDER BY o.dias_atraso DESC NULLS LAST, o.nota_fiscal
         """
         with get_connection() as conn:
             rows = conn.execute(sql, params).fetchall()

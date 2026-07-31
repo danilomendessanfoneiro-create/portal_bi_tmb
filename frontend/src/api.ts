@@ -282,6 +282,20 @@ export type ImportBatch = {
   created_on?: string | null;
 };
 
+export type ActiveDataset = {
+  source: string;
+  batch_id?: number | null;
+  sync_id?: number | null;
+  label: string;
+  activated_on?: string | null;
+  row_count?: number | null;
+  empty_reason?: string | null;
+};
+
+export function getActiveDataset(): Promise<ActiveDataset> {
+  return request<ActiveDataset>("/imports/active-dataset");
+}
+
 export async function uploadImportFile(file: File): Promise<ImportBatch> {
   const form = new FormData();
   form.append("file", file);
@@ -319,6 +333,10 @@ export function getImportBatch(id: number): Promise<ImportBatch> {
 
 export function softDeleteImportBatch(id: number): Promise<ImportBatch> {
   return request<ImportBatch>(`/imports/${id}/deactivate`, { method: "POST" });
+}
+
+export function dispatchImportReportEmails(): Promise<{ detail: string }> {
+  return request<{ detail: string }>(`/imports/dispatch-emails`, { method: "POST" });
 }
 
 export function listImportBatches(params: {

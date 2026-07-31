@@ -8,7 +8,7 @@ from typing import Optional, Union
 import numpy as np
 import pandas as pd
 
-# calc1.vb — clientes removidos por AutoFilter
+# calc1.vb — exclusão por AutoFilter na coluna Excel "Cliente" (não é o destinatário)
 CLIENTES_EXCLUIR_MACROS: frozenset[str] = frozenset(
     {
         "NINFA INDUSTRIA DE ALIMENTOS LTDA",
@@ -19,6 +19,13 @@ CLIENTES_EXCLUIR_MACROS: frozenset[str] = frozenset(
     }
 )
 
+# Variações em "Nome Remetente" / API que correspondem às contas excluídas no Excel
+CLIENTES_EXCLUIR_ALIASES: frozenset[str] = frozenset(
+    {
+        "NINFA ALIMENTOS LTDA",
+    }
+)
+
 STATUS_PRAZO_ATRASO = "01_ATRASO"
 STATUS_PRAZO_VENCENDO_HOJE = "02_VENCENDO HOJE"
 STATUS_PRAZO_VENCENDO_AMANHA = "03_VENCENDO AMANHÃ"
@@ -26,6 +33,12 @@ STATUS_PRAZO_DEPOIS_AMANHA = "04_DEPOIS DE AMANHÃ"
 STATUS_PRAZO_FUTURO = "05_VENCIMENTO FUTURO"
 
 DateLike = Union[date, datetime, pd.Timestamp, None]
+
+
+def _nomes_excluir_normalizados() -> set[str]:
+    return {c.upper() for c in CLIENTES_EXCLUIR_MACROS} | {
+        c.upper() for c in CLIENTES_EXCLUIR_ALIASES
+    }
 
 
 def _as_date(value: DateLike) -> Optional[date]:
@@ -71,16 +84,26 @@ def classificar_status_prazo(dt_prazo_atual: DateLike, hoje: DateLike) -> str:
 
 
 def excluir_clientes_macros(df: pd.DataFrame) -> pd.DataFrame:
-    """Remove os 5 clientes hardcoded do calc1 (coluna Cliente Excel ≈ remetente)."""
+    """
+    Remove contas da lista calc1.
+
+    Prioridade (paridade Excel):
+    1. cliente_conta ← coluna planilha "Cliente"
+    2. remetente ← Nome Remetente / API (com aliases, ex. NINFA ALIMENTOS)
+    Não usa destinatário (Nome Pessoa Visita → cliente) como chave de exclusão.
+    """
     if df.empty:
         return df
     out = df.copy()
-    excluir = {c.upper() for c in CLIENTES_EXCLUIR_MACROS}
+    excluir = _nomes_excluir_normalizados()
     mask = pd.Series(False, index=out.index)
+
+    if "cliente_conta" in out.columns:
+        mask |= out["cliente_conta"].astype(str).str.strip().str.upper().isin(excluir)
+
     if "remetente" in out.columns:
         mask |= out["remetente"].astype(str).str.strip().str.upper().isin(excluir)
-    if "cliente" in out.columns:
-        mask |= out["cliente"].astype(str).str.strip().str.upper().isin(excluir)
+
     return out.loc[~mask].reset_index(drop=True)
 
 
@@ -91,7 +114,7 @@ def aplicar_regras_macros(
     """
     Conversão das regras de negócio das macros (sem cosmético Excel).
 
-    - Exclui clientes da lista calc1
+    - Exclui contas da lista calc1 (Cliente Excel / remetente)
     - STATUS PRAZO só com dt_prazo_atual
     - RETORNO FILIAL sempre vazio (cliente confirmou: existe mas não usam)
     - atrasado / vence_hoje alinhados ao STATUS PRAZO (paridade Excel)

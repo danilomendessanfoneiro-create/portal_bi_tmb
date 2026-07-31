@@ -101,16 +101,15 @@ def build_report_html(
     due_block = _table_html(due_today) if n_due else f"<p>{EMPTY_MSG}</p>"
     return f"""\
 <html><body style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#222;line-height:1.45;">
-<p>Bom dia,</p>
-<p><strong>{audience_name}</strong>, segue a atualização da planilha.</p>
-<p>Peço, por gentileza, que me retornem até as 16h00 com as informações referentes às
-Notas Fiscais em atraso e às que vencem hoje.</p>
+<p><strong>Olá, bom dia!</strong></p>
+<p><strong>{audience_name},</strong></p>
+<p>Segue relatório de notas em atraso da sua filial.<br>
+Peço que baixe os canhotos com urgência e para as notas que serão entregues em atraso
+favor retornar com a previsão.</p>
 <p><strong>Notas fiscais em atraso ({n_overdue})</strong></p>
 {overdue_block}
 <p><strong>Notas fiscais que vencem hoje ({n_due})</strong></p>
 {due_block}
-<p>Reforço a importância de que as devidas baixas sejam realizadas.</p>
-<p>Fico à disposição para qualquer ajuste ou esclarecimento em caso de intercorrências.</p>
 <p>Atenciosamente.</p>
 </body></html>
 """

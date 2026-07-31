@@ -240,6 +240,16 @@ class ImportBatchListResponse(BaseModel):
     page_size: int
 
 
+class ActiveDatasetOut(BaseModel):
+    source: str
+    batch_id: Optional[int] = None
+    sync_id: Optional[int] = None
+    label: str = ""
+    activated_on: Optional[str] = None
+    row_count: Optional[int] = None
+    empty_reason: Optional[str] = None
+
+
 class ImportErrorOut(BaseModel):
     row_number: Optional[int] = None
     level: str = "error"

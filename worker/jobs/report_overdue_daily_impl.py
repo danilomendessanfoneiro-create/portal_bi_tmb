@@ -91,7 +91,10 @@ def _begin_phase(ctx: JobContext, automation_id: str):
 
 def _plain_fallback(audience: str) -> str:
     return (
-        f"Bom dia,\n\n{audience}, segue a atualização da planilha.\n"
+        f"Olá, bom dia!\n\n{audience},\n\n"
+        "Segue relatório de notas em atraso da sua filial.\n"
+        "Peço que baixe os canhotos com urgência e para as notas que serão "
+        "entregues em atraso favor retornar com a previsão.\n"
         "Abra este e-mail em um cliente que suporte HTML para ver as tabelas.\n"
     )
 

@@ -75,6 +75,8 @@ def map_delivery_item(item: dict[str, Any]) -> DeliveryRecord:
         nro_entrega=remessa_numero,
         nota_fiscal=nota_fiscal,
         cliente=_as_str(_dig(item, "destinatario", "nome")),
+        cliente_conta=_as_str(_dig(item, "embarcador", "nome"))
+        or _as_str(_dig(item, "cliente", "nome")),
         filial=filial,
         cidade_entrega=_as_str(_dig(item, "destinatario", "cidade")),
         uf_entrega=_as_str(_dig(item, "destinatario", "uf")),
@@ -84,6 +86,7 @@ def map_delivery_item(item: dict[str, Any]) -> DeliveryRecord:
         dt_prazo_atual=_as_dt(_dig(item, "prazo", "atual")),
         dt_agendamento=_as_dt(_dig(item, "agendamento", "atual")),
         dt_entrega=_as_dt(_dig(item, "fluxo", "entrega")),
+        dt_recebimento=_as_dt(_dig(item, "fluxo", "recebimento")),
         dt_cancelamento=_as_dt(_dig(item, "fluxo", "cancelamento")),
         motivo_cancelamento=None,
         motivo_atraso=_as_str(_dig(item, "ocorrencia", "observacao")),

@@ -21,6 +21,7 @@ def test_map_remessa_numero_as_key():
         "agendamento": {"atual": None},
         "fluxo": {
             "cadastro": "2026-07-01T14:05:20.137",
+            "recebimento": "2026-07-01T15:00:00",
             "entrega": None,
             "cancelamento": None,
         },
@@ -35,3 +36,5 @@ def test_map_remessa_numero_as_key():
     assert rec.filial == "MATRIZ"
     assert rec.cliente == "CLIENTE 173"
     assert rec.valor_total == 592.83
+    assert rec.dt_recebimento is not None
+    assert rec.dt_recebimento.isoformat(timespec="seconds") == "2026-07-01T15:00:00"

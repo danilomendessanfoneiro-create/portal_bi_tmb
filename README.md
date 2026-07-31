@@ -25,7 +25,9 @@ Documentação detalhada:
 | [docs/deploy-vps.md](docs/deploy-vps.md) | Deploy na VPS |
 | [docs/servico-jobs.md](docs/servico-jobs.md) | Worker de relatórios e automações |
 | [docs/importacao-manual-planilha.md](docs/importacao-manual-planilha.md) | Upload/validação/importação manual |
-| [docs/integracao-api-tmselite.md](docs/integracao-api-tmselite.md) | Integração TMS (futura) |
+| [docs/paridade-lote-ativo-macros.md](docs/paridade-lote-ativo-macros.md) | Lote ativo e paridade com macros Excel |
+| [docs/analise-prazo-considerado.md](docs/analise-prazo-considerado.md) | Regra de atraso (Dt. Prazo Atual) |
+| [docs/integracao-api-tmselite.md](docs/integracao-api-tmselite.md) | Integração TMS Elite |
 | [app/api/README.md](app/api/README.md) | Endpoints da API |
 
 ## Funcionalidades implementadas
@@ -47,13 +49,16 @@ Documentação detalhada:
 
 ### BI (Streamlit `/bi`)
 
-- Dashboard de entregas a partir de `dados/entregas_relatorio.csv` (`limpeza.py`).
+- Dashboard **Operacional** a partir do **lote ativo** em `prb_deliveries` (`limpeza.processar_entregas`).
+- Lote ativo = última planilha importada; senão última sync API (ver [docs/paridade-lote-ativo-macros.md](docs/paridade-lote-ativo-macros.md)).
+- Aba **Histórico** com snapshots diários + drill-down do dia.
 - Filtros na sidebar; modo embed sem navegação duplicada.
 - Segregação por filial alinhada ao perfil do usuário.
+- Atraso alinhado às macros Excel (`Dt. Prazo Atual` + exclusão das 5 contas em `cliente_conta`).
 
 ### Relatórios por e-mail (worker)
 
-Job único `report_overdue_daily` com duas fases (fonte: **`prb_deliveries`** via API):
+Job único `report_overdue_daily` com duas fases (fonte: **lote ativo** em `prb_deliveries`):
 
 1. **Filiais** — um HTML por e-mail cadastrado no usuário filial; só dados daquela filial.
 2. **Gerencial** — HTML consolidado aos destinatários administrativos (assunto/saudação com o **nome do destinatário**).
@@ -66,13 +71,15 @@ Características:
 - Filial sem e-mail: aviso no log e segue.
 - CSV local em `storage/reports/` apenas para auditoria.
 - Idempotência por automação + data (`prb_job_runs`).
+- Disparo manual no Admin (botão) — **não** automático após import de planilha.
 
 ### Persistência (PostgreSQL)
 
-Migrations incrementais em `database/migrations/` (até `019`), padrão `prb_*` + `_audit`:
+Migrations incrementais em `database/migrations/` (até `030`), padrão `prb_*` + `_audit`:
 
 - Usuários, SMTP, destinatários, execuções de job, automações (`display_name`, `frequency`, `weekday`, `day_of_month`)
-- Integração API (`prb_api_settings`), entregas (`prb_deliveries`), logs (`prb_integration_logs`)
+- Integração API (`prb_api_settings`), entregas (`prb_deliveries` + `cliente_conta`, `dt_recebimento`, dataset do lote)
+- Snapshots BI (`prb_bi_snapshot_*`), importação manual (`prb_import_*`), ponteiro `prb_active_dataset`
 
 ## Desenvolvimento local
 

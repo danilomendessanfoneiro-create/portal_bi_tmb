@@ -13,6 +13,7 @@ class DeliveryRecord:
     nro_entrega: str
     nota_fiscal: Optional[str] = None
     cliente: Optional[str] = None
+    cliente_conta: Optional[str] = None
     filial: Optional[str] = None
     cidade_entrega: Optional[str] = None
     uf_entrega: Optional[str] = None
@@ -22,6 +23,7 @@ class DeliveryRecord:
     dt_prazo_atual: Optional[datetime] = None
     dt_agendamento: Optional[datetime] = None
     dt_entrega: Optional[datetime] = None
+    dt_recebimento: Optional[datetime] = None
     dt_cancelamento: Optional[datetime] = None
     motivo_cancelamento: Optional[str] = None
     motivo_atraso: Optional[str] = None

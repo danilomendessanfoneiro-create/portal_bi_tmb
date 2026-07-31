@@ -208,6 +208,7 @@ class ManualImportService:
                 ("dt_prazo_atual", "data de prazo"),
                 ("dt_agendamento", "data de agendamento"),
                 ("dt_entrega", "data de entrega"),
+                ("dt_recebimento", "data de recebimento"),
                 ("dt_cadastro", "data de cadastro"),
             ):
                 raw = payload.get(f"{dt_field}_raw")
@@ -318,6 +319,7 @@ class ManualImportService:
                         "nro_entrega": item.get("nro_entrega") or item.get("remessa_numero"),
                         "nota_fiscal": item.get("nota_fiscal"),
                         "cliente": item.get("cliente"),
+                        "cliente_conta": item.get("cliente_conta"),
                         "filial": item.get("filial"),
                         "cidade_entrega": item.get("cidade_entrega"),
                         "uf_entrega": item.get("uf_entrega"),
@@ -327,6 +329,7 @@ class ManualImportService:
                         "dt_prazo_atual": item.get("dt_prazo_atual"),
                         "dt_agendamento": item.get("dt_agendamento"),
                         "dt_entrega": item.get("dt_entrega"),
+                        "dt_recebimento": item.get("dt_recebimento"),
                         "dt_cancelamento": item.get("dt_cancelamento"),
                         "motivo_cancelamento": item.get("motivo_cancelamento"),
                         "motivo_atraso": item.get("motivo_atraso"),
@@ -353,6 +356,8 @@ class ManualImportService:
                         actor=actor,
                         source="manual_upload",
                         conn=conn,
+                        dataset_batch_id=batch_id,
+                        dataset_source="manual_import",
                     )
                     inserted += ins
                     updated += upd
@@ -385,7 +390,20 @@ class ManualImportService:
                 actor=actor,
             )
             self._purge_stored_file(batch_id, actor=actor)
-            self._trigger_report_jobs(batch_id, actor=actor)
+            try:
+                from app.services.active_dataset_service import ActiveDatasetService
+
+                batch_meta = self._imports.get_batch(batch_id) or {}
+                ActiveDatasetService().remember(
+                    source="manual_import",
+                    actor=actor,
+                    batch_id=batch_id,
+                    label=str(batch_meta.get("file_name") or f"Lote #{batch_id}"),
+                    row_count=total,
+                )
+            except Exception:
+                pass
+            self._capture_bi_snapshot_after_import(actor=actor)
         except Exception as exc:
             finished = datetime.now()
             duration_ms = int((finished - started).total_seconds() * 1000)
@@ -401,8 +419,8 @@ class ManualImportService:
             )
             self._purge_stored_file(batch_id, actor=actor)
 
-    def _trigger_report_jobs(self, batch_id: int, *, actor: str) -> None:
-        """Alternativa 1: reutiliza worker report_overdue_daily com --force (ignora --if-due)."""
+    def dispatch_report_emails(self, *, actor: str) -> dict[str, Any]:
+        """Disparo manual do job de e-mails (não amarrado a um lote)."""
         try:
             cmd = [
                 sys.executable,
@@ -418,23 +436,36 @@ class ManualImportService:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-            self._imports.update_batch(
-                batch_id,
-                {
-                    "report_job_status": "started",
-                    "report_job_message": f"report_overdue_daily --force pid={proc.pid}",
-                },
-                actor=actor,
-            )
+            return {
+                "status": "started",
+                "message": "Envio de e-mails disparado. Os relatórios serão enviados em segundo plano.",
+                "pid": proc.pid,
+                "actor": actor,
+            }
         except Exception as exc:
-            self._imports.update_batch(
-                batch_id,
-                {
-                    "report_job_status": "failed",
-                    "report_job_message": str(exc),
-                },
+            raise ManualImportError(f"Falha ao disparar envio de e-mails: {exc}") from exc
+
+    def _capture_bi_snapshot_after_import(self, *, actor: str) -> None:
+        """Recalcula o snapshot do Histórico do dia com o lote ativo; falha não desfaz a importação."""
+        try:
+            from limpeza import processar_entregas
+            from app.services.bi_snapshot_service import BiSnapshotService
+            from zoneinfo import ZoneInfo
+
+            business_date = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+            df = processar_entregas(data_referencia=business_date)
+            overdue = df[df["atrasado"] == True].copy() if "atrasado" in df.columns else df.iloc[0:0]
+            snap = BiSnapshotService().capture_replace(
+                business_date,
+                overdue,
                 actor=actor,
+                source="manual_import",
+                source_job_id="manual_import",
             )
+            if snap.status == "failed":
+                return
+        except Exception:
+            return
 
     def get_batch(self, batch_id: int) -> dict[str, Any]:
         batch = self._imports.get_batch(batch_id)
@@ -516,6 +547,9 @@ class ManualImportService:
                     "nro_entrega": nro,
                     "nota_fiscal": None if _is_missing(row.get("nota_fiscal")) else str(row.get("nota_fiscal")),
                     "cliente": None if _is_missing(row.get("cliente")) else str(row.get("cliente")),
+                    "cliente_conta": None
+                    if _is_missing(row.get("cliente_conta"))
+                    else str(row.get("cliente_conta")),
                     "filial": None if _is_missing(row.get("filial")) else str(row.get("filial")),
                     "cidade_entrega": None
                     if _is_missing(row.get("cidade_entrega"))
@@ -527,6 +561,7 @@ class ManualImportService:
                     "dt_prazo_atual": _as_python_dt(row.get("dt_prazo_atual")),
                     "dt_agendamento": _as_python_dt(row.get("dt_agendamento")),
                     "dt_entrega": _as_python_dt(row.get("dt_entrega")),
+                    "dt_recebimento": _as_python_dt(row.get("dt_recebimento")),
                     "dt_cancelamento": _as_python_dt(row.get("dt_cancelamento")),
                     "motivo_cancelamento": None
                     if _is_missing(row.get("motivo_cancelamento"))

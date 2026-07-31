@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Literal, Optional
 
 import streamlit as st
@@ -35,8 +35,8 @@ class BiDashboardFilters:
     filtro_cliente: list[Any]
     filtro_cidade: list[Any]
     situacao: str = "Todas"
+    # Prazo considerado: () = off; (ini,) = só início; (ini, fim) = intervalo inclusive
     filtro_periodo: Optional[tuple] = None
-    tolerancia: int = 0
     date_from: Optional[date] = None
     date_to: Optional[date] = None
 
@@ -110,17 +110,46 @@ def _render_common_fields(
         st.multiselect("Cidade", cidades, key=_k(mode, "cidade"))
 
 
+def _coerce_date(value: Any) -> Optional[date]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return None
+
+
+def _parse_prazo_periodo(raw: Any) -> Optional[tuple]:
+    """Normaliza o valor do date_input range para (ini,), (ini, fim) ou None."""
+    if raw is None or raw == () or raw == []:
+        return None
+    if isinstance(raw, datetime):
+        return (raw.date(),)
+    if isinstance(raw, date):
+        return (raw,)
+    if isinstance(raw, (tuple, list)):
+        datas = [_coerce_date(x) for x in raw]
+        datas = [d for d in datas if d is not None]
+        if not datas:
+            return None
+        if len(datas) == 1:
+            return (datas[0],)
+        return (datas[0], datas[1])
+    return None
+
+
 def _render_operacional_extras(periodo_bounds: Optional[tuple[date, date]]) -> None:
     mode: BiFilterMode = "operacional"
     key_sit = _k(mode, "situacao")
-    key_tol = _k(mode, "tolerancia")
-    key_per = _k(mode, "periodo")
+    key_per = _k(mode, "periodo_v2")
     if key_sit not in st.session_state:
         st.session_state[key_sit] = "Todas"
-    if key_tol not in st.session_state:
-        st.session_state[key_tol] = 0
+    if key_per not in st.session_state:
+        # Vazio = filtro desligado (não pré-selecionar min–max do dataset)
+        st.session_state[key_per] = ()
 
-    c1, c2, c3 = st.columns(3)
+    c1, c2 = st.columns(2)
     with c1:
         st.selectbox(
             "Situação",
@@ -130,25 +159,21 @@ def _render_operacional_extras(periodo_bounds: Optional[tuple[date, date]]) -> N
     with c2:
         if periodo_bounds:
             data_min, data_max = periodo_bounds
-            if key_per not in st.session_state:
-                st.session_state[key_per] = (data_min, data_max)
             st.date_input(
-                "Prazo considerado entre",
+                "Prazo considerado",
                 min_value=data_min,
                 max_value=data_max,
-                help="Filtra pela data de prazo considerada.",
+                format="DD/MM/YYYY",
+                help=(
+                    "Intervalo pela data do prazo (Dt. Prazo Atual). "
+                    "Com as duas datas: atrasados no intervalo (inclusive). "
+                    "Só a inicial: atrasados com prazo ≥ inicial. "
+                    "Datas iguais: exatamente aquele dia."
+                ),
                 key=key_per,
             )
         else:
             st.caption("Sem datas de prazo disponíveis.")
-    with c3:
-        st.slider(
-            "Tolerância extra (dias)",
-            min_value=0,
-            max_value=15,
-            help="Simula o impacto de dias extras de prazo.",
-            key=key_tol,
-        )
 
     if st.button(
         "Limpar seleção dos gráficos",
@@ -195,13 +220,10 @@ def _collect_filters(
         filtro_filial = [viewer.branch] if viewer.branch else []
 
     situacao = "Todas"
-    tolerancia = 0
     filtro_periodo = None
     if mode == "operacional":
         situacao = str(st.session_state.get(_k(mode, "situacao"), "Todas") or "Todas")
-        tolerancia = int(st.session_state.get(_k(mode, "tolerancia"), 0) or 0)
-        periodo = st.session_state.get(_k(mode, "periodo"))
-        filtro_periodo = periodo if isinstance(periodo, tuple) and len(periodo) == 2 else None
+        filtro_periodo = _parse_prazo_periodo(st.session_state.get(_k(mode, "periodo_v2")))
 
     date_from = date_to = None
     if mode == "historico" and hoje is not None:
@@ -214,7 +236,6 @@ def _collect_filters(
         filtro_cidade=_read_list(_k(mode, "cidade")),
         situacao=situacao,
         filtro_periodo=filtro_periodo,
-        tolerancia=tolerancia,
         date_from=date_from,
         date_to=date_to,
     )

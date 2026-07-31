@@ -44,9 +44,9 @@ class EmailRecipientService:
                 "email": email,
                 "role_title": (data.role_title or "").strip() or None,
                 "department": (data.department or "").strip() or None,
-                "receive_daily": bool(data.receive_daily),
-                "receive_weekly": bool(data.receive_weekly),
-                "receive_monthly": bool(data.receive_monthly),
+                "receive_daily": True,
+                "receive_weekly": False,
+                "receive_monthly": False,
                 "enabled": bool(data.enabled),
             },
             actor=actor,
@@ -75,12 +75,10 @@ class EmailRecipientService:
             fields["role_title"] = data.role_title.strip() or None
         if data.department is not None:
             fields["department"] = data.department.strip() or None
-        if data.receive_daily is not None:
-            fields["receive_daily"] = bool(data.receive_daily)
-        if data.receive_weekly is not None:
-            fields["receive_weekly"] = bool(data.receive_weekly)
-        if data.receive_monthly is not None:
-            fields["receive_monthly"] = bool(data.receive_monthly)
+        # Tipo de relatório fixo: apenas Diário
+        fields["receive_daily"] = True
+        fields["receive_weekly"] = False
+        fields["receive_monthly"] = False
         if data.enabled is not None:
             fields["enabled"] = bool(data.enabled)
 

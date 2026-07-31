@@ -49,6 +49,7 @@ class DeliveryImportService:
         actor: str = "worker",
         job_id: str = "import_deliveries_initial",
         initial_load_days: Optional[int] = None,
+        dataset_sync_id: Optional[int] = None,
     ) -> DeliveryImportResult:
         cfg = self._require_config()
         days = int(initial_load_days) if initial_load_days is not None else int(cfg.initial_load_days)
@@ -63,6 +64,7 @@ class DeliveryImportService:
             filter_end=end,
             dry_run=dry_run,
             actor=actor,
+            dataset_sync_id=dataset_sync_id,
         )
 
     def run_daily(
@@ -74,6 +76,7 @@ class DeliveryImportService:
         job_id: str = "import_deliveries_daily",
         id_status: Optional[str] = None,
         id_servico: Optional[str] = None,
+        dataset_sync_id: Optional[int] = None,
     ) -> DeliveryImportResult:
         return self._run(
             job_id=job_id,
@@ -84,6 +87,7 @@ class DeliveryImportService:
             actor=actor,
             id_status=id_status,
             id_servico=id_servico,
+            dataset_sync_id=dataset_sync_id,
         )
 
     def _require_config(self):
@@ -103,6 +107,7 @@ class DeliveryImportService:
         actor: str,
         id_status: Optional[str] = None,
         id_servico: Optional[str] = None,
+        dataset_sync_id: Optional[int] = None,
     ) -> DeliveryImportResult:
         cfg = self._require_config()
         token = decrypt_secret(cfg.token_encrypted)
@@ -150,7 +155,13 @@ class DeliveryImportService:
                 )
 
             if fetched.records:
-                inserted, updated = self._deliveries.upsert_many(fetched.records, actor=actor)
+                inserted, updated = self._deliveries.upsert_many(
+                    fetched.records,
+                    actor=actor,
+                    source="api",
+                    dataset_sync_id=dataset_sync_id,
+                    dataset_source="api_sync",
+                )
 
             status = "partial" if fetched.error_count and (inserted or updated) else (
                 "failed" if fetched.error_count and not fetched.records else "success"
@@ -170,6 +181,19 @@ class DeliveryImportService:
                     error_message="; ".join(fetched.errors) if fetched.errors else None,
                     actor=actor,
                 )
+            if status in {"success", "partial"} and dataset_sync_id is not None and not dry_run:
+                try:
+                    from app.services.active_dataset_service import ActiveDatasetService
+
+                    ActiveDatasetService().remember(
+                        source="api_sync",
+                        actor=actor,
+                        sync_id=dataset_sync_id,
+                        label=f"Sync API #{dataset_sync_id} ({job_id})",
+                        row_count=inserted + updated,
+                    )
+                except Exception:
+                    pass
             return DeliveryImportResult(
                 status=status,
                 message=message,

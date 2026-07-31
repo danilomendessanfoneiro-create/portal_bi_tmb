@@ -11,3 +11,21 @@
 2026-07-30 â€” DONE US-008 HistÃ³rico com filtros arquivo/usuÃ¡rio/data/status
 2026-07-30 â€” DONE US-009 Disparo report_overdue_daily --force
 2026-07-30 â€” DONE US-010 docs/importacao-manual-planilha.md
+
+# Atlas progress — drilldown-dashboard-historico
+# Source: tasks/prd-drilldown-dashboard-historico.md
+
+## [US-001] Consulta de fatos do snapshot por dia — DONE
+- list_overdue_for_day no BiSnapshotRepository/Service; testes em test_bi_snapshot.py
+
+## [US-002] Seleção do dia no gráfico Histórico — DONE
+- plotly on_select + selectbox Dia para detalhar + Limpar detalhe do dia
+
+## [US-003] Painel Detalhe do Dia — KPIs e breakdown — DONE
+- KPIs qtde/valor/média + barras filial (admin) / cliente (filial)
+
+## [US-004] Drill dimensional e tabela de registros — DONE
+- Drill por clique; tabela com status_prazo ordenada por dias_atraso desc
+
+## [US-005] Documentação — DONE
+- docs/servico-jobs.md e docs/contrato-servico-portal-bi.md

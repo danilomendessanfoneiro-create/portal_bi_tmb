@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import { Navigate } from "react-router-dom";
 import {
+  dispatchImportReportEmails,
+  getActiveDataset,
   getImportBatch,
   listImportBatches,
   softDeleteImportBatch,
   startImportBatch,
   uploadImportFile,
   validateImportBatch,
+  type ActiveDataset,
   type ImportBatch,
 } from "../api";
 import { useAuth } from "../auth";
@@ -57,12 +60,23 @@ export function ImportPage() {
   const [dateTo, setDateTo] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [dispatching, setDispatching] = useState(false);
+  const [dispatchMsg, setDispatchMsg] = useState("");
+  const [activeDataset, setActiveDataset] = useState<ActiveDataset | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<number | null>(null);
 
   const clearFileSelection = useCallback(() => {
     setFile(null);
     if (inputRef.current) inputRef.current.value = "";
+  }, []);
+
+  const loadActiveDataset = useCallback(async () => {
+    try {
+      setActiveDataset(await getActiveDataset());
+    } catch {
+      setActiveDataset(null);
+    }
   }, []);
 
   const loadHistory = useCallback(async () => {
@@ -78,10 +92,11 @@ export function ImportPage() {
       });
       setHistory(data.items);
       setHistTotal(data.total);
+      await loadActiveDataset();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao carregar histórico");
     }
-  }, [search, statusFilter, userFilter, dateFrom, dateTo]);
+  }, [search, statusFilter, userFilter, dateFrom, dateTo, loadActiveDataset]);
 
   useEffect(() => {
     if (isAdmin) void loadHistory();
@@ -188,6 +203,27 @@ export function ImportPage() {
       await loadHistory();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha na exclusão lógica");
+    }
+  }
+
+  async function onDispatchEmails() {
+    if (
+      !window.confirm(
+        "Disparar agora o envio dos e-mails de relatório (filiais + gerencial)?",
+      )
+    ) {
+      return;
+    }
+    setDispatching(true);
+    setDispatchMsg("");
+    setError("");
+    try {
+      const res = await dispatchImportReportEmails();
+      setDispatchMsg(res.detail || "Envio de e-mails disparado em background.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao disparar e-mails");
+    } finally {
+      setDispatching(false);
     }
   }
 
@@ -345,7 +381,60 @@ export function ImportPage() {
       </div>
 
       <div className="card">
-        <h2 style={{ marginTop: 0, fontSize: "1.05rem" }}>Histórico de importações</h2>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "0.75rem",
+            flexWrap: "wrap",
+            marginBottom: "0.75rem",
+          }}
+        >
+          <h2 style={{ margin: 0, fontSize: "1.05rem" }}>Histórico de importações</h2>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={dispatching || busy}
+            onClick={() => void onDispatchEmails()}
+          >
+            {dispatching ? "Disparando…" : "Disparar Envio de E-mails"}
+          </button>
+        </div>
+        {activeDataset && activeDataset.source !== "empty" && (
+          <div
+            style={{
+              background: "#EEF2FF",
+              border: "1px solid #C7D2FE",
+              borderRadius: 10,
+              padding: "0.65rem 0.85rem",
+              marginBottom: "0.75rem",
+              fontSize: "0.9rem",
+            }}
+          >
+            Lote ativo:{" "}
+            <strong>
+              {activeDataset.source === "manual_import" ? "Planilha" : "API"}
+            </strong>
+            {" — "}
+            {activeDataset.label}
+            {activeDataset.row_count != null ? ` · ${activeDataset.row_count} entregas` : ""}
+          </div>
+        )}
+        {dispatchMsg && (
+          <div
+            style={{
+              background: "#E8F6F0",
+              border: "1px solid #B7E4D0",
+              borderRadius: 10,
+              padding: "0.65rem 0.9rem",
+              marginBottom: "0.75rem",
+              fontSize: "0.9rem",
+            }}
+          >
+            {dispatchMsg}
+          </div>
+        )}
         <div className="toolbar" style={{ marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
           <input
             type="search"
@@ -391,13 +480,14 @@ export function ImportPage() {
                 <th>Erros</th>
                 <th>Tempo</th>
                 <th>Status</th>
+                <th>Lote</th>
                 <th>Ações</th>
               </tr>
             </thead>
             <tbody>
               {history.length === 0 ? (
                 <tr>
-                  <td colSpan={10}>Nenhuma importação registrada.</td>
+                  <td colSpan={11}>Nenhuma importação registrada.</td>
                 </tr>
               ) : (
                 history.map((h) => (
@@ -411,6 +501,14 @@ export function ImportPage() {
                     <td>{h.error_rows}</td>
                     <td>{formatDuration(h.duration_ms)}</td>
                     <td>{statusLabel(h.status)}</td>
+                    <td>
+                      {activeDataset?.source === "manual_import" &&
+                      activeDataset.batch_id === h.id ? (
+                        <span className="badge badge-on">Ativo</span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                     <td>
                       {(h.status === "validated_error" || h.status === "failed") && (
                         <button

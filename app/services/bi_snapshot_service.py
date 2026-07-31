@@ -16,6 +16,23 @@ logger = logging.getLogger("bi_snapshot")
 
 RULE_VERSION = "macros-v1"
 
+OVERDUE_DAY_COLUMNS = [
+    "business_date",
+    "remessa_numero",
+    "nro_entrega",
+    "nota_fiscal",
+    "filial",
+    "cliente",
+    "cidade_entrega",
+    "uf_entrega",
+    "status",
+    "motorista",
+    "dias_atraso",
+    "valor_total",
+    "prazo_considerado",
+    "status_prazo",
+]
+
 
 @dataclass
 class SnapshotCaptureResult:
@@ -166,6 +183,37 @@ class BiSnapshotService:
                 message=str(exc),
             )
 
+    def capture_replace(
+        self,
+        business_date: date,
+        overdue: pd.DataFrame,
+        *,
+        actor: str = "worker",
+        source: str = "manual_import",
+        source_job_id: Optional[str] = "manual_import",
+        source_run_id: Optional[int] = None,
+        captured_on: Optional[datetime] = None,
+    ) -> SnapshotCaptureResult:
+        """Recria o snapshot do dia (usado após importação de planilha)."""
+        replaced_id = self._repo.delete_run_by_business_date(business_date)
+        result = self.capture_if_absent(
+            business_date,
+            overdue,
+            actor=actor,
+            source=source,
+            source_job_id=source_job_id,
+            source_run_id=source_run_id,
+            captured_on=captured_on,
+        )
+        if result.status == "created" and replaced_id is not None:
+            result = SnapshotCaptureResult(
+                status="replaced",
+                message=f"Snapshot {business_date.isoformat()} substituído: {result.rows} linha(s)",
+                run_id=result.run_id,
+                rows=result.rows,
+            )
+        return result
+
     def filter_options(
         self,
         *,
@@ -201,4 +249,34 @@ class BiSnapshotService:
             return pd.DataFrame(columns=["business_date", "overdue_count"])
         df = pd.DataFrame(rows)
         df["business_date"] = pd.to_datetime(df["business_date"]).dt.date
+        return df
+
+    def list_overdue_for_day(
+        self,
+        *,
+        business_date: date,
+        filiais: Optional[list[str]] = None,
+        clientes: Optional[list[str]] = None,
+        cidades: Optional[list[str]] = None,
+        busca: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """Linhas do snapshot de um dia (somente atrasados da foto). Não lê prb_deliveries."""
+        rows = self._repo.list_overdue_for_day(
+            business_date=business_date,
+            filiais=filiais or None,
+            clientes=clientes or None,
+            cidades=cidades or None,
+            busca=busca,
+        )
+        if not rows:
+            return pd.DataFrame(columns=OVERDUE_DAY_COLUMNS)
+        df = pd.DataFrame(rows)
+        if "business_date" in df.columns:
+            df["business_date"] = pd.to_datetime(df["business_date"]).dt.date
+        if "prazo_considerado" in df.columns:
+            df["prazo_considerado"] = pd.to_datetime(df["prazo_considerado"], errors="coerce")
+        if "dias_atraso" in df.columns:
+            df["dias_atraso"] = pd.to_numeric(df["dias_atraso"], errors="coerce").fillna(0).astype(int)
+        if "valor_total" in df.columns:
+            df["valor_total"] = pd.to_numeric(df["valor_total"], errors="coerce")
         return df

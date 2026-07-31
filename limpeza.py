@@ -27,6 +27,8 @@ from datetime import datetime
 COLUNAS_UTEIS = {
     "Nro. Entrega": "nro_entrega",
     "Nota Fiscal": "nota_fiscal",
+    # Conta comercial (calc1 exclui por esta coluna) ≠ destinatário
+    "Cliente": "cliente_conta",
     # Destinatário da entrega (paridade com API: destinatario.nome → cliente)
     "Nome Pessoa Visita": "cliente",
     "Sigla Unidade Entrega": "filial",          # unidade da transportadora
@@ -38,6 +40,7 @@ COLUNAS_UTEIS = {
     "Dt. Prazo Atual": "dt_prazo_atual",
     "Dt. Agendamento": "dt_agendamento",
     "Dt. Entrega": "dt_entrega",
+    "Dt. Recebimento": "dt_recebimento",
     "Dt. Cancelamento": "dt_cancelamento",
     "Motivo Cancelamento": "motivo_cancelamento",
     "Motivo de Atraso": "motivo_atraso",
@@ -55,6 +58,7 @@ COLUNAS_DATA = [
     "dt_prazo_atual",
     "dt_agendamento",
     "dt_entrega",
+    "dt_recebimento",
     "dt_cancelamento",
     "dt_cadastro",
 ]
@@ -149,7 +153,7 @@ def tratar_tipos(df: pd.DataFrame) -> pd.DataFrame:
             )
 
     # texto: tira espacos extras e padroniza vazio
-    for col in ["cliente", "filial", "status", "cidade_entrega", "uf_entrega",
+    for col in ["cliente", "cliente_conta", "filial", "status", "cidade_entrega", "uf_entrega",
                 "motorista", "remetente", "cidade_remetente", "uf_remetente"]:
         if col in df.columns:
             df[col] = df[col].astype(str).str.strip()
@@ -207,13 +211,19 @@ def processar_planilha(caminho_arquivo: str, data_referencia: datetime | None = 
 
 
 def carregar_dados_postgres() -> pd.DataFrame:
-    """Carrega entregas importadas da API (prb_deliveries)."""
+    """Carrega entregas do lote ativo (última planilha ou última sync API)."""
     from app.repositories.delivery_repository import DeliveryRepository
+    from app.services.active_dataset_service import ActiveDatasetService
 
-    rows = DeliveryRepository().list_for_bi()
+    active = ActiveDatasetService().resolve()
+    if active.is_empty:
+        raise FileNotFoundError(active.empty_reason or "Nenhum lote ativo para análise.")
+
+    rows = DeliveryRepository().list_for_bi(active=active, restrict_to_active_dataset=True)
     if not rows:
         raise FileNotFoundError(
-            "Nenhuma entrega em prb_deliveries. Execute o job de importação da API."
+            f"Lote ativo sem entregas marcadas ({active.label}). "
+            "Reimporte a planilha ou rode a sync da API para etiquetar o lote."
         )
     df = pd.DataFrame(rows)
     # Aliases já batem com COLUNAS_UTEIS renomeadas
@@ -221,6 +231,7 @@ def carregar_dados_postgres() -> pd.DataFrame:
         "nro_entrega",
         "nota_fiscal",
         "cliente",
+        "cliente_conta",
         "filial",
         "cidade_entrega",
         "uf_entrega",
@@ -230,6 +241,7 @@ def carregar_dados_postgres() -> pd.DataFrame:
         "dt_prazo_atual",
         "dt_agendamento",
         "dt_entrega",
+        "dt_recebimento",
         "dt_cancelamento",
         "motivo_cancelamento",
         "motivo_atraso",
@@ -263,7 +275,7 @@ def processar_entregas(data_referencia: datetime | None = None) -> pd.DataFrame:
     for col in ["qtde_volumes", "peso_taxado", "peso_informado"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
-    for col in ["cliente", "filial", "status", "cidade_entrega", "uf_entrega",
+    for col in ["cliente", "cliente_conta", "filial", "status", "cidade_entrega", "uf_entrega",
                 "motorista", "remetente", "cidade_remetente", "uf_remetente", "nro_entrega"]:
         if col in df.columns:
             df[col] = df[col].astype(str).str.strip().replace({"nan": np.nan, "None": np.nan})

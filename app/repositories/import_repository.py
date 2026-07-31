@@ -90,17 +90,17 @@ class ImportRepository:
             conn.execute("DELETE FROM prb_import_logs WHERE batch_id = %s", [batch_id])
             sql = """
                 INSERT INTO prb_import_batch_items (
-                    batch_id, row_number, remessa_numero, nro_entrega, nota_fiscal, cliente, filial,
-                    cidade_entrega, uf_entrega, status_entrega, valor_total, qtde_volumes,
-                    dt_prazo_atual, dt_agendamento, dt_entrega, dt_cancelamento,
+                    batch_id, row_number, remessa_numero, nro_entrega, nota_fiscal, cliente, cliente_conta,
+                    filial, cidade_entrega, uf_entrega, status_entrega, valor_total, qtde_volumes,
+                    dt_prazo_atual, dt_agendamento, dt_entrega, dt_recebimento, dt_cancelamento,
                     motivo_cancelamento, motivo_atraso, nome_recebedor, dt_cadastro, motorista,
                     remetente, cidade_remetente, uf_remetente, peso_taxado, peso_informado,
                     payload, is_valid, error_message,
                     created_by, created_on, modified_by, modified_on, enabled
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
                     %s::jsonb, %s, %s,
@@ -117,6 +117,7 @@ class ImportRepository:
                         item.get("nro_entrega"),
                         item.get("nota_fiscal"),
                         item.get("cliente"),
+                        item.get("cliente_conta"),
                         item.get("filial"),
                         item.get("cidade_entrega"),
                         item.get("uf_entrega"),
@@ -126,6 +127,7 @@ class ImportRepository:
                         item.get("dt_prazo_atual"),
                         item.get("dt_agendamento"),
                         item.get("dt_entrega"),
+                        item.get("dt_recebimento"),
                         item.get("dt_cancelamento"),
                         item.get("motivo_cancelamento"),
                         item.get("motivo_atraso"),

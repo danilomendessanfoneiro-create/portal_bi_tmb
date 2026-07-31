@@ -1,167 +1,83 @@
 {
   "project": "Portal BI TMB",
-  "branchName": "atlas/upload-planilha-importacao-manual",
-  "description": "Módulo admin de importação manual de planilhas (CSV/Excel) com validação em staging, upsert em prb_deliveries, histórico e disparo em background dos jobs de relatório existentes.",
+  "branchName": "atlas/drilldown-dashboard-historico",
+  "description": "Drill-down no Dashboard Histórico: clique no dia (com fallback) abre espelho com KPIs, breakdown e registros só dos atrasados da foto daquele business_date.",
   "targetRepo": null,
-  "sourcePrd": "tasks/prd-upload-planilha-importacao-manual.md",
+  "sourcePrd": "tasks/prd-drilldown-dashboard-historico.md",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Migrations de lote, staging e auditoria",
-      "description": "As a developer, I need prb_* tables for import batches and staging so validation can run without touching prb_deliveries.",
+      "title": "Consulta de fatos do snapshot por dia",
+      "description": "As a developer, I want list_overdue_for_day (repository + service) so that the UI can load the overdue rows of a single business_date with the same filters and access scope as the historical series.",
       "acceptanceCriteria": [
-        "Incremental migrations for prb_import_batches, prb_import_batch_items (staging), and import history/log fields with created_by/created_on/modified_by/modified_on/enabled where applicable",
-        "Audit tables and triggers in project prb_* pattern",
-        "Batch stores file metadata, status enum (uploaded|validating|validated_ok|validated_error|importing|imported|failed), counters and timings",
-        "Staging references batch_id and preserves spreadsheet row number for error messages",
-        "Typecheck passes",
+        "BiSnapshotRepository lista linhas de prb_bi_snapshot_overdue para um business_date (enabled), com filtros opcionais filial / cliente / cidade / busca (NF ou cliente)",
+        "BiSnapshotService.list_overdue_for_day(...) retorna DataFrame (ou lista tipada) pronto para o Streamlit",
+        "Admin pode filtrar qualquer filial; perfil filial é sempre restrito a viewer.branch (nunca vazamento)",
+        "Não lê prb_deliveries",
+        "Unit tests: filtros, dia sem dados → vazio, escopo filial",
         "Tests pass"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Implemented in atlas/upload-planilha-importacao-manual"
+      "notes": "list_overdue_for_day no repo/service; tests/test_bi_snapshot.py"
     },
     {
       "id": "US-002",
-      "title": "Catálogo de filiais para validação de existência",
-      "description": "As an admin, I want import to reject unknown branch codes and suggest registering the branch.",
+      "title": "Seleção do dia no gráfico Histórico",
+      "description": "As a usuário do BI, I want to click a day on the historical bar chart (or pick it from a fallback selector) so that the system knows which snapshot day to mirror.",
       "acceptanceCriteria": [
-        "Branch source of truth: distinct non-empty branch from prb_users where profile='filial' and enabled=true",
-        "Empty or unknown branch produces per-row error and blocks the batch",
-        "Error message suggests registering the branch via Administração → Usuários (filial profile + Filial field)",
-        "Typecheck passes",
-        "Tests pass"
+        "st.plotly_chart do Histórico captura seleção de barra e grava business_date em st.session_state",
+        "Fallback: selectbox (ou equivalente) listando os dias presentes na série agregada filtrada — Dia para detalhar",
+        "Botão/ação Limpar detalhe do dia remove a seleção e volta ao modo só série",
+        "Dia inválido / fora da série / sem snapshot → mensagem clara, sem crash",
+        "Verify in browser"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "Implemented in atlas/upload-planilha-importacao-manual"
+      "notes": "history_controller: on_select + selectbox + limpar; browser MCP indisponível — verificado por import/código"
     },
     {
       "id": "US-003",
-      "title": "API de upload e criação de batch em staging",
-      "description": "As an admin, I want to upload one spreadsheet so rows are staged for validation without writing deliveries.",
+      "title": "Painel Detalhe do Dia — KPIs e breakdown",
+      "description": "As a usuário do BI, I want KPIs and a dimensional breakdown for the selected day so that I can compare volume, value and concentration (filial or cliente) at a glance.",
       "acceptanceCriteria": [
-        "Admin-only multipart upload endpoint; one file per request",
-        "Accept .csv, .xlsx, .xls; reject other types with clear 400",
-        "Reject empty/corrupt files and files over 20 MB or 100000 data rows; Excel validates expected sheet exists",
-        "Persist file under storage/imports (retention allowed, no auto-purge in this delivery); create batch + staging only — no prb_deliveries writes",
-        "Reuse CSV column mapping (limpeza COLUNAS_UTEIS / CsvDeliveryImportService patterns); Excel converts to same internal schema",
-        "Typecheck passes",
-        "Tests pass"
+        "Com dia selecionado, exibe seção Detalhe do dia DD/MM/AAAA",
+        "KPIs: quantidade em atraso; valor total em atraso; média de dias em atraso",
+        "Breakdown em barras: filial se admin; cliente se perfil filial (respeitando escopo)",
+        "Dados vêm só do snapshot do dia + filtros do painel Histórico já aplicados",
+        "Verify in browser"
       ],
       "priority": 3,
       "passes": true,
-      "notes": "Implemented in atlas/upload-planilha-importacao-manual"
+      "notes": "_render_detalhe_do_dia com KPIs + barras; browser MCP indisponível"
     },
     {
       "id": "US-004",
-      "title": "Serviço de validação completa do lote",
-      "description": "As an admin, I want a full validation pass on staged data before any production update.",
+      "title": "Drill dimensional e tabela de registros",
+      "description": "As an admin (or filial user), I want to click the breakdown chart and see the filtered table of deliveries for that day so that I can investigate individual NFs like on the Operacional dashboard.",
       "acceptanceCriteria": [
-        "Validate endpoint/service reads staging only; does not modify prb_deliveries",
-        "Structure checks: required columns, unknown/duplicate columns, types",
-        "Data checks: dates, numbers, required empties, duplicate nro_entrega/remessa within sheet, unknown branch (US-002)",
-        "Each error stores line number + explicit Portuguese message",
-        "Batch counters and status updated to validated_ok or validated_error",
-        "Typecheck passes",
-        "Tests pass"
+        "Clique no gráfico de breakdown grava drill (filial ou cliente) em session_state e filtra KPIs auxiliares / tabela",
+        "Tabela lista registros do snapshot do dia incluindo status_prazo, ordenada por dias_atraso desc (como Operacional)",
+        "Ação para limpar o drill dimensional sem sair do dia",
+        "Empty state quando o dia/filtros não retornam linhas",
+        "Verify in browser"
       ],
       "priority": 4,
       "passes": true,
-      "notes": "Implemented in atlas/upload-planilha-importacao-manual"
+      "notes": "Drill HIST_DRILL_KEY + tabela com status_prazo; browser MCP indisponível"
     },
     {
       "id": "US-005",
-      "title": "Tela Admin — Upload, validação e resultado",
-      "description": "As an admin, I want an Importação de Dados screen with drag-and-drop and validation results for the two-step flow.",
+      "title": "Documentação",
+      "description": "As a developer, I want a short doc update so that the team knows how the day mirror works and its limits vs Operacional.",
       "acceptanceCriteria": [
-        "Menu Administração → Importação de Dados visible only to admin",
-        "UI: drag-and-drop, file picker, file metadata, Validar Planilha and Importar Dados buttons",
-        "Importar Dados disabled until validated_ok (zero errors)",
-        "After validation show totals and detailed error list",
-        "Visual identity matches existing Admin React",
-        "Typecheck passes",
-        "Verify in browser"
+        "Atualizar doc do Histórico / contrato descrevendo: clique → Detalhe do dia; só atrasados da foto; não reconstrói vence hoje/em dia",
+        "Referenciar este PRD e o plano .atlas/plans/2026-07-31-drilldown-dashboard-historico.md",
+        "Documentation complete"
       ],
       "priority": 5,
       "passes": true,
-      "notes": "Implemented in atlas/upload-planilha-importacao-manual"
-    },
-    {
-      "id": "US-006",
-      "title": "Importação efetiva com upsert e transação",
-      "description": "As an admin, I want confirmed import to upsert deliveries by remessa/nro_entrega using existing business rules.",
-      "acceptanceCriteria": [
-        "Import endpoint accepts only validated_ok batches; otherwise 400/409",
-        "Staging maps to DeliveryRecord and upserts prb_deliveries by remessa_numero (same as CSV/API)",
-        "Reuse existing cleanup/macro pipeline as applicable on write",
-        "Single DB transaction for the batch; on error full rollback and status failed with log",
-        "Update inserted/updated counters and status imported",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 6,
-      "passes": true,
-      "notes": "Implemented in atlas/upload-planilha-importacao-manual"
-    },
-    {
-      "id": "US-007",
-      "title": "Progresso da importação na UI",
-      "description": "As an admin, I want progress feedback during import for large files.",
-      "acceptanceCriteria": [
-        "During import UI shows progress bar with percent, processed and remaining (polling or equivalent)",
-        "On completion show summary: processed, updated, inserted, total time",
-        "Typecheck passes",
-        "Verify in browser"
-      ],
-      "priority": 7,
-      "passes": true,
-      "notes": "Implemented in atlas/upload-planilha-importacao-manual"
-    },
-    {
-      "id": "US-008",
-      "title": "Histórico de importações",
-      "description": "As an admin, I want a searchable history grid of past imports for audit.",
-      "acceptanceCriteria": [
-        "Grid on same page: datetime, user, file, total, inserted, updated, errors, duration, status",
-        "Filters by date, user, file, status",
-        "Data from prb_import_* tables (not in-memory only)",
-        "Typecheck passes",
-        "Verify in browser"
-      ],
-      "priority": 8,
-      "passes": true,
-      "notes": "Implemented in atlas/upload-planilha-importacao-manual"
-    },
-    {
-      "id": "US-009",
-      "title": "Disparo automático dos jobs de relatório após importação",
-      "description": "As an admin, I want filial and gerencial report jobs to run in background after successful manual import.",
-      "acceptanceCriteria": [
-        "After successful imported status, trigger existing report_overdue_daily worker (both phases) in background — do not reimplement mail/HTML in the page",
-        "API import response is not blocked by report job runtime; trigger failures are logged on batch without rolling back deliveries",
-        "Manual post-import trigger bypasses --if-due window (e.g. --force) and is documented",
-        "Document Alternative 1 rationale (reuse jobs) in feature docs",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 9,
-      "passes": true,
-      "notes": "Implemented in atlas/upload-planilha-importacao-manual"
-    },
-    {
-      "id": "US-010",
-      "title": "Documentação do módulo de importação manual",
-      "description": "As a maintainer, I want docs covering the manual import flow, tables, validation and job trigger.",
-      "acceptanceCriteria": [
-        "Update repo docs: upload→staging→validate→import flow, tables, validation rules, upsert, job trigger, supported spreadsheet model (CSV+Excel)",
-        "Include Mermaid flowchart of the process",
-        "Documentation complete",
-        "Typecheck passes"
-      ],
-      "priority": 10,
-      "passes": true,
-      "notes": "Implemented in atlas/upload-planilha-importacao-manual"
+      "notes": "docs/servico-jobs.md + docs/contrato-servico-portal-bi.md"
     }
   ]
 }

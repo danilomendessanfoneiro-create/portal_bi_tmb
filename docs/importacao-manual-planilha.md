@@ -16,9 +16,25 @@ flowchart TD
   D -->|ok| F[validated_ok]
   F --> G[Importar Dados]
   G --> H[Upsert prb_deliveries em transação]
-  H --> I[Histórico + progresso]
-  I --> J[Dispara report_overdue_daily --force em background]
+  H --> I[Purge arquivo + progresso]
+  I --> J[Snapshot Histórico do dia — replace]
+  J --> K[Lote ativo = este batch]
 ```
+
+Após import bem-sucedida, o sistema **recalcula** o snapshot do **Dashboard Histórico** do dia
+(`capture_replace`, `source=manual_import`), substituindo o snapshot anterior da mesma data.
+O job `report_overdue_daily` continua usando `capture_if_absent` no horário agendado
+(não sobrescreve se o dia já tiver snapshot — inclusive o gerado pelo import).
+
+## Lote ativo (análise BI)
+
+O Operacional, os e-mails e o snapshot **não** leem mais todo o histórico acumulado de `prb_deliveries`. A análise usa o **lote ativo**:
+
+- prioridade: último batch de planilha com status `imported` (`dataset_batch_id`);
+- fallback: última sincronização API com sucesso (`dataset_sync_id`);
+- a planilha permanece ativa mesmo se a API rodar depois (até o próximo upload).
+
+Cada importação marca as linhas upsertadas com o `batch_id`. Ver [paridade-lote-ativo-macros.md](paridade-lote-ativo-macros.md).
 
 ## Acesso
 
@@ -29,6 +45,9 @@ flowchart TD
 
 - `.csv`, `.xlsx`, `.xls`
 - Layout compatível com `dados/entregas_relatorio.csv` / `COLUNAS_UTEIS` em `limpeza.py`
+- Inclui **Cliente** → `cliente_conta` (conta comercial; exclusão das macros calc1)
+- Inclui **Nome Pessoa Visita** → `cliente` (destinatário)
+- Inclui **Dt. Recebimento** → `dt_recebimento` (campo distinto de **Dt. Entrega**)
 - Máximo **20 MB** e **100.000** linhas
 - Arquivos retidos em `storage/imports/` (sem purge automático)
 
@@ -48,16 +67,19 @@ flowchart TD
 - Source: `manual_upload`
 - Transação única no lote; falha ⇒ rollback das entregas do lote
 
-## Relatórios após importação (Alternativa 1)
+## Relatórios / e-mails
 
-Reutiliza o job existente:
+O disparo **não** ocorre automaticamente ao fim da importação.
+
+Na tela **Importação de Dados**, use o botão **Disparar Envio de E-mails** (acima do histórico). A UI confirma com mensagem amigável (“Envio de e-mails disparado…”). Em background o servidor executa:
 
 ```bash
 python -m worker run report_overdue_daily --force
 ```
 
-Disparo em background após `imported` (não bloqueia a API). `--force` ignora a janela `--if-due`.
-Falha no disparo é registrada em `report_job_*` do batch sem desfazer o upsert.
+(`--force` ignora a janela horária e a idempotência do dia; o conteúdo dos e-mails usa o **lote ativo** atual — última planilha importada ou, na ausência, última sync API.)
+
+API equivalente: `POST /api/imports/dispatch-emails` (admin). Detalhe técnico do processo (pid/job) **não** é exibido ao usuário.
 
 ## Tabelas
 
@@ -72,6 +94,7 @@ Falha no disparo é registrada em `report_job_*` do batch sem desfazer o upsert.
 
 | Método | Path | Descrição |
 |--------|------|-----------|
+| POST | `/api/imports/dispatch-emails` | Disparo manual dos e-mails de relatório |
 | POST | `/api/imports/upload` | Upload multipart |
 | POST | `/api/imports/{id}/validate` | Validação |
 | POST | `/api/imports/{id}/import` | Inicia importação |

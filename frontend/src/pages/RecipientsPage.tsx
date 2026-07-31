@@ -77,9 +77,9 @@ export function RecipientsPage() {
       email: item.email,
       role_title: item.role_title || "",
       department: item.department || "",
-      receive_daily: item.receive_daily,
-      receive_weekly: item.receive_weekly,
-      receive_monthly: item.receive_monthly,
+      receive_daily: true,
+      receive_weekly: false,
+      receive_monthly: false,
       enabled: item.enabled,
     });
     setModalError("");
@@ -91,10 +91,16 @@ export function RecipientsPage() {
     setSaving(true);
     setModalError("");
     try {
+      const payload: RecipientFormValues = {
+        ...values,
+        receive_daily: true,
+        receive_weekly: false,
+        receive_monthly: false,
+      };
       if (editing) {
-        await updateRecipient(editing.id, values);
+        await updateRecipient(editing.id, payload);
       } else {
-        await createRecipient(values);
+        await createRecipient(payload);
       }
       setModalOpen(false);
       await load();
@@ -160,9 +166,7 @@ export function RecipientsPage() {
               <tr>
                 <th>Nome</th>
                 <th>E-mail</th>
-                <th>Diário</th>
-                <th>Semanal</th>
-                <th>Mensal</th>
+                <th>Tipo de relatório</th>
                 <th>Status</th>
                 <th>Ações</th>
               </tr>
@@ -170,20 +174,18 @@ export function RecipientsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7}>Carregando…</td>
+                  <td colSpan={5}>Carregando…</td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={7}>Nenhum destinatário encontrado.</td>
+                  <td colSpan={5}>Nenhum destinatário encontrado.</td>
                 </tr>
               ) : (
                 items.map((item) => (
                   <tr key={item.id}>
                     <td>{item.name}</td>
                     <td>{item.email}</td>
-                    <td>{item.receive_daily ? "Sim" : "Não"}</td>
-                    <td>{item.receive_weekly ? "Sim" : "Não"}</td>
-                    <td>{item.receive_monthly ? "Sim" : "Não"}</td>
+                    <td>Diário</td>
                     <td>
                       <span className={`badge ${item.enabled ? "badge-on" : "badge-off"}`}>
                         {item.enabled ? "Ativo" : "Inativo"}
@@ -276,26 +278,24 @@ export function RecipientsPage() {
                   onChange={(e) => setValues((p) => ({ ...p, department: e.target.value }))}
                 />
               </div>
-              {(
-                [
-                  ["receive_daily", "Recebe relatório diário"],
-                  ["receive_weekly", "Recebe relatório semanal"],
-                  ["receive_monthly", "Recebe relatório mensal"],
-                  ["enabled", "Ativo"],
-                ] as const
-              ).map(([key, label]) => (
-                <div className="field" key={key}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={values[key]}
-                      onChange={(e) => setValues((p) => ({ ...p, [key]: e.target.checked }))}
-                      style={{ marginRight: "0.45rem" }}
-                    />
-                    {label}
-                  </label>
-                </div>
-              ))}
+              <div className="field">
+                <label>Tipo de relatório</label>
+                <input value="Diário" disabled />
+                <small style={{ color: "var(--muted)" }}>
+                  Definido automaticamente pelo sistema (semanal/mensal não estão disponíveis).
+                </small>
+              </div>
+              <div className="field">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={values.enabled}
+                    onChange={(e) => setValues((p) => ({ ...p, enabled: e.target.checked }))}
+                    style={{ marginRight: "0.45rem" }}
+                  />
+                  Ativo
+                </label>
+              </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-ghost" onClick={() => setModalOpen(false)} disabled={saving}>
                   Cancelar
