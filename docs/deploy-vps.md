@@ -189,7 +189,7 @@ source .venv/bin/activate
 python database/deploy/run_migrations.py
 ```
 
-Confirme que rodou até a migration mais recente (ex.: `030_add_active_dataset_columns.sql`). Em atualizações, rode **sempre** após o `git pull`.
+Confirme que rodou até a migration mais recente (ex.: `039_add_progress_snapshot_status_prazo.sql`). Em atualizações, rode **sempre** após o `git pull`.
 
 ---
 
