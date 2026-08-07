@@ -371,6 +371,29 @@ sudo -u www-data /opt/portal-bi-tmb/.venv/bin/python -m worker run report_overdu
 
 ## 14. Atualização (deploy rotineiro)
 
+Script único (preferencial):
+
+```bash
+cd /opt/portal-bi-tmb
+# Bash:
+chmod +x deploy/update.sh   # uma vez
+./deploy/update.sh
+
+# ou CLI Python (mesmos passos; base para automação futura):
+source .venv/bin/activate
+python -m deploy update
+```
+
+Opções úteis:
+
+```bash
+./deploy/update.sh --branch master --with-units
+python -m deploy update --skip-pull --dry-run
+python -m deploy update --with-units --health-url http://127.0.0.1:8000/api/health
+```
+
+Equivalente manual (se preferir passo a passo):
+
 ```bash
 cd /opt/portal-bi-tmb
 sudo systemctl stop portal-bi portal-api   # opcional, reduz inconsistência
