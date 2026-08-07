@@ -5,12 +5,13 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class LoginRequest(BaseModel):
     login: str
     password: str
+    hcaptcha_token: Optional[str] = None
 
 
 class TokenResponse(BaseModel):
@@ -157,6 +158,51 @@ class RecipientUpdateBody(BaseModel):
 
 class RecipientListResponse(BaseModel):
     items: list[RecipientOut]
+    total: int
+    page: int
+    page_size: int
+
+
+class ClientOut(BaseModel):
+    id: int
+    name: str
+    cnpj: str
+    emails: Optional[str] = None
+    enabled: bool = True
+    created_on: Optional[datetime] = None
+    modified_on: Optional[datetime] = None
+
+
+class ClientCreateBody(BaseModel):
+    name: str
+    cnpj: str
+    emails: Optional[str] = None
+    enabled: bool = True
+
+    @field_validator("cnpj", mode="before")
+    @classmethod
+    def _digits_cnpj(cls, v: object) -> object:
+        if v is None:
+            return v
+        return "".join(ch for ch in str(v) if ch.isdigit())[:14]
+
+
+class ClientUpdateBody(BaseModel):
+    name: Optional[str] = None
+    cnpj: Optional[str] = None
+    emails: Optional[str] = None
+    enabled: Optional[bool] = None
+
+    @field_validator("cnpj", mode="before")
+    @classmethod
+    def _digits_cnpj(cls, v: object) -> object:
+        if v is None:
+            return v
+        return "".join(ch for ch in str(v) if ch.isdigit())[:14]
+
+
+class ClientListResponse(BaseModel):
+    items: list[ClientOut]
     total: int
     page: int
     page_size: int

@@ -61,14 +61,14 @@ class DeliveryRepository:
             ds_source = dataset_source or "manual_import"
             sql = """
                 INSERT INTO prb_deliveries (
-                    remessa_numero, nro_entrega, nota_fiscal, cliente, cliente_conta, filial, cidade_entrega,
+                    remessa_numero, nro_entrega, nota_fiscal, cliente, cliente_conta, cnpj_cliente, filial, cidade_entrega,
                     uf_entrega, status, valor_total, qtde_volumes, dt_prazo_atual, dt_agendamento, dt_entrega,
                     dt_recebimento, dt_cancelamento, motivo_cancelamento, motivo_atraso, nome_recebedor,
                     dt_cadastro, motorista, remetente, cidade_remetente, uf_remetente, peso_taxado,
                     peso_informado, raw_json, synced_at, source, dataset_source, dataset_batch_id,
                     dataset_sync_id, created_by, created_on, modified_by, modified_on, enabled
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s, %s,
@@ -80,6 +80,7 @@ class DeliveryRepository:
                     nota_fiscal = EXCLUDED.nota_fiscal,
                     cliente = EXCLUDED.cliente,
                     cliente_conta = EXCLUDED.cliente_conta,
+                    cnpj_cliente = EXCLUDED.cnpj_cliente,
                     filial = EXCLUDED.filial,
                     cidade_entrega = EXCLUDED.cidade_entrega,
                     uf_entrega = EXCLUDED.uf_entrega,
@@ -135,14 +136,14 @@ class DeliveryRepository:
         ds_source = dataset_source or "api_sync"
         sql = """
             INSERT INTO prb_deliveries (
-                remessa_numero, nro_entrega, nota_fiscal, cliente, cliente_conta, filial, cidade_entrega,
+                remessa_numero, nro_entrega, nota_fiscal, cliente, cliente_conta, cnpj_cliente, filial, cidade_entrega,
                 uf_entrega, status, valor_total, qtde_volumes, dt_prazo_atual, dt_agendamento, dt_entrega,
                 dt_recebimento, dt_cancelamento, motivo_cancelamento, motivo_atraso, nome_recebedor,
                 dt_cadastro, motorista, remetente, cidade_remetente, uf_remetente, peso_taxado,
                 peso_informado, raw_json, synced_at, source, dataset_source, dataset_batch_id,
                 dataset_sync_id, created_by, created_on, modified_by, modified_on, enabled
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s, %s,
                 %s, %s, %s, %s, %s, %s,
@@ -154,6 +155,7 @@ class DeliveryRepository:
                 nota_fiscal = EXCLUDED.nota_fiscal,
                 cliente = EXCLUDED.cliente,
                 cliente_conta = EXCLUDED.cliente_conta,
+                cnpj_cliente = EXCLUDED.cnpj_cliente,
                 filial = EXCLUDED.filial,
                 cidade_entrega = EXCLUDED.cidade_entrega,
                 uf_entrega = EXCLUDED.uf_entrega,
@@ -223,6 +225,7 @@ class DeliveryRepository:
             rec.nota_fiscal,
             rec.cliente,
             rec.cliente_conta,
+            rec.cnpj_cliente,
             rec.filial,
             rec.cidade_entrega,
             rec.uf_entrega,
@@ -268,6 +271,7 @@ class DeliveryRepository:
             rec.nota_fiscal,
             rec.cliente,
             rec.cliente_conta,
+            rec.cnpj_cliente,
             rec.filial,
             rec.cidade_entrega,
             rec.uf_entrega,
@@ -314,6 +318,26 @@ class DeliveryRepository:
                 [actor, source],
             ).fetchall()
         return len(rows)
+
+    def list_by_batch_id(
+        self,
+        batch_id: int,
+        *,
+        include_disabled: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Todas as entregas do batch (todos os status) — fonte do snapshot de Progressão."""
+        clauses = ["dataset_batch_id = %s"]
+        params: list[Any] = [batch_id]
+        if not include_disabled:
+            clauses.append("enabled = TRUE")
+        sql = (
+            "SELECT * FROM prb_deliveries WHERE "
+            + " AND ".join(clauses)
+            + " ORDER BY remessa_numero"
+        )
+        with get_connection() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
 
     def list_for_bi(
         self,

@@ -14,7 +14,7 @@ from app.repositories.bi_snapshot_repository import BiSnapshotRepository
 
 logger = logging.getLogger("bi_snapshot")
 
-RULE_VERSION = "macros-v1"
+RULE_VERSION = "calc-consolidada-v1"
 
 OVERDUE_DAY_COLUMNS = [
     "business_date",
@@ -236,6 +236,7 @@ class BiSnapshotService:
         clientes: Optional[list[str]] = None,
         cidades: Optional[list[str]] = None,
         busca: Optional[str] = None,
+        statuses: Optional[list[str]] = None,
     ) -> pd.DataFrame:
         rows = self._repo.aggregate_overdue_by_day(
             date_from=date_from,
@@ -244,6 +245,7 @@ class BiSnapshotService:
             clientes=clientes or None,
             cidades=cidades or None,
             busca=busca,
+            statuses=statuses or None,
         )
         if not rows:
             return pd.DataFrame(columns=["business_date", "overdue_count"])
@@ -259,6 +261,7 @@ class BiSnapshotService:
         clientes: Optional[list[str]] = None,
         cidades: Optional[list[str]] = None,
         busca: Optional[str] = None,
+        statuses: Optional[list[str]] = None,
     ) -> pd.DataFrame:
         """Linhas do snapshot de um dia (somente atrasados da foto). Não lê prb_deliveries."""
         rows = self._repo.list_overdue_for_day(
@@ -267,6 +270,7 @@ class BiSnapshotService:
             clientes=clientes or None,
             cidades=cidades or None,
             busca=busca,
+            statuses=statuses or None,
         )
         if not rows:
             return pd.DataFrame(columns=OVERDUE_DAY_COLUMNS)

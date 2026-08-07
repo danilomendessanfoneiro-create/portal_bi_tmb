@@ -105,6 +105,49 @@ div[data-testid="stMetricValue"] { color: #1E3056; }
 .stButton>button:hover { background: #142240; color: white; }
 
 hr.custom-divider { border: none; border-top: 1px solid #E4E9F1; margin: 1.4rem 0; }
+
+.bi-filter-chips {
+    display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.35rem 0 0.75rem;
+    font-size: 0.8rem; color: #475569;
+}
+.bi-filter-chip {
+    display: inline-block; padding: 0.25rem 0.65rem; border-radius: 999px;
+    background: #EEF1F6; border: 1px solid #E4E9F1; font-weight: 600;
+}
+.bi-drill-bar { margin: 0.5rem 0 0.85rem; }
+
+/* ---- responsividade (phone ≤768, tablet ≤1024) ---- */
+@media (max-width: 1024px) {
+    div[data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap !important;
+    }
+    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"],
+    div[data-testid="stHorizontalBlock"] > div {
+        min-width: 100% !important;
+        flex: 1 1 100% !important;
+        width: 100% !important;
+    }
+    /* KPIs: 2×2 no tablet/phone */
+    div[data-testid="stHorizontalBlock"]:has(.kpi-card) > div[data-testid="stColumn"],
+    div[data-testid="stHorizontalBlock"]:has(.kpi-card) > div {
+        min-width: calc(50% - 0.4rem) !important;
+        flex: 1 1 calc(50% - 0.4rem) !important;
+        width: calc(50% - 0.4rem) !important;
+        max-width: calc(50% - 0.4rem) !important;
+    }
+    .kpi-value { font-size: 1.45rem; }
+    .kpi-card { padding: 1rem 1.05rem; }
+    .section-card { padding: 1rem 1.05rem 0.9rem; }
+    .brand-title { font-size: 1.25rem; }
+    .block-container {
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .kpi-value { font-size: 1.35rem; }
+}
 </style>
 """
 

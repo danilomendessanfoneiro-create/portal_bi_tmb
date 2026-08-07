@@ -12,6 +12,7 @@ import pandas as pd
 
 from app.config import settings
 from app.integrations.tmselite.models import DeliveryRecord
+from app.utils.cnpj import normalize_cnpj
 from app.repositories.delivery_repository import DeliveryRepository
 from limpeza import (
     carregar_dados_brutos,
@@ -86,6 +87,7 @@ def map_csv_row(row: pd.Series) -> DeliveryRecord:
         nota_fiscal=_as_str(row.get("nota_fiscal")),
         cliente=_as_str(row.get("cliente")),
         cliente_conta=_as_str(row.get("cliente_conta")),
+        cnpj_cliente=normalize_cnpj(row.get("cnpj_cliente")) or None,
         filial=_as_str(row.get("filial")),
         cidade_entrega=_as_str(row.get("cidade_entrega")),
         uf_entrega=_as_str(row.get("uf_entrega")),

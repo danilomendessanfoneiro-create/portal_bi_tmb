@@ -50,10 +50,14 @@ def test_health():
     assert r.json()["status"] == "ok"
 
 
+@patch("app.api.routers.auth.verify_hcaptcha")
 @patch("app.api.routers.auth.AuthService")
-def test_login_ok(mock_svc_cls):
+def test_login_ok(mock_svc_cls, _mock_captcha):
     mock_svc_cls.return_value.authenticate.return_value = _admin_user()
-    r = client.post("/api/auth/login", json={"login": "admin", "password": "admin123"})
+    r = client.post(
+        "/api/auth/login",
+        json={"login": "admin", "password": "admin123", "hcaptcha_token": "ok"},
+    )
     assert r.status_code == 200
     body = r.json()
     assert "access_token" in body
@@ -61,21 +65,26 @@ def test_login_ok(mock_svc_cls):
     assert body["user"]["profile"] == "admin"
 
 
+@patch("app.api.routers.auth.verify_hcaptcha")
 @patch("app.api.routers.auth.AuthService")
-def test_login_fail(mock_svc_cls):
+def test_login_fail(mock_svc_cls, _mock_captcha):
     mock_svc_cls.return_value.authenticate.return_value = None
-    r = client.post("/api/auth/login", json={"login": "x", "password": "y"})
+    r = client.post("/api/auth/login", json={"login": "x", "password": "y", "hcaptcha_token": "ok"})
     assert r.status_code == 401
 
 
 @patch("app.api.deps.UserRepository")
+@patch("app.api.routers.auth.verify_hcaptcha")
 @patch("app.api.routers.auth.AuthService")
-def test_me_and_users_admin(mock_auth_cls, mock_repo_cls):
+def test_me_and_users_admin(mock_auth_cls, _mock_captcha, mock_repo_cls):
     admin = _admin_user()
     mock_auth_cls.return_value.authenticate.return_value = admin
     mock_repo_cls.return_value.get_by_login.return_value = admin
 
-    login = client.post("/api/auth/login", json={"login": "admin", "password": "x"})
+    login = client.post(
+        "/api/auth/login",
+        json={"login": "admin", "password": "x", "hcaptcha_token": "ok"},
+    )
     token = login.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -91,13 +100,17 @@ def test_me_and_users_admin(mock_auth_cls, mock_repo_cls):
 
 
 @patch("app.api.deps.UserRepository")
+@patch("app.api.routers.auth.verify_hcaptcha")
 @patch("app.api.routers.auth.AuthService")
-def test_users_forbidden_for_filial(mock_auth_cls, mock_repo_cls):
+def test_users_forbidden_for_filial(mock_auth_cls, _mock_captcha, mock_repo_cls):
     filial = _filial_user()
     mock_auth_cls.return_value.authenticate.return_value = filial
     mock_repo_cls.return_value.get_by_login.return_value = filial
 
-    login = client.post("/api/auth/login", json={"login": "filial1", "password": "x"})
+    login = client.post(
+        "/api/auth/login",
+        json={"login": "filial1", "password": "x", "hcaptcha_token": "ok"},
+    )
     token = login.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 

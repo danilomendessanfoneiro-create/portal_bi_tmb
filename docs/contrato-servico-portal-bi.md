@@ -32,7 +32,7 @@ Solução de **Business Intelligence (BI)** para acompanhamento visual do desemp
 
 ### A.3 Regra de negócio central (atraso)
 
-Definida com o cliente e implementada no sistema (**paridade macros Excel calc1**):
+Definida com o cliente e implementada no sistema (**paridade `calcConsolidada.vb`**):
 
 | Conceito | Regra atual (código) |
 |---|---|

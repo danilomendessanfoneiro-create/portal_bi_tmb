@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth";
 import { Shell } from "./components/Shell";
 import { ApiIntegrationPage } from "./pages/ApiIntegrationPage";
+import { ClientsPage } from "./pages/ClientsPage";
 import { ImportPage } from "./pages/ImportPage";
 import { LoginPage } from "./pages/LoginPage";
 import { RecipientsPage } from "./pages/RecipientsPage";
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="visualizacao" element={<Navigate to="/" replace />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="imports" element={<ImportPage />} />
+          <Route path="clients" element={<ClientsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="settings/smtp" element={<SmtpPage />} />
           <Route path="settings/recipients" element={<RecipientsPage />} />

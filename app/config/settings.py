@@ -26,6 +26,8 @@ class Settings:
     api_public_url: str = os.getenv("API_PUBLIC_URL", "http://localhost:8000/api")
     admin_public_url: str = os.getenv("ADMIN_PUBLIC_URL", "http://localhost:5173")
     bi_public_url: str = os.getenv("BI_PUBLIC_URL", "http://localhost:8501")
+    hcaptcha_sitekey: str = os.getenv("HCAPTCHA_SITEKEY", "")
+    hcaptcha_secret: str = os.getenv("HCAPTCHA_SECRET", "")
     data_csv: Path = ROOT_DIR / "dados" / "entregas_relatorio.csv"
     users_csv_seed: Path = ROOT_DIR / "usuarios.csv"
     logo_path: Path = ROOT_DIR / "assets" / "logos" / "logo.png"

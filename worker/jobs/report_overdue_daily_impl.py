@@ -1,7 +1,20 @@
-"""report_overdue_daily — orquestra Fase A (filiais) e Fase B (gerencial)."""
+"""report_overdue_daily — orquestra fases de e-mail de atraso.
+
+Fases (automações em prb_job_settings, mesma janela `--if-due` / `--force`):
+
+- ``report_branch_daily`` — filiais (`user.branch` = entrega.filial; e-mails em ``prb_users.report_emails``)
+- ``report_client_daily`` — clientes (`prb_clients.cnpj` = entrega.`cnpj_cliente`; e-mails em ``prb_clients.emails``)
+- ``report_managerial`` — destinatários gerenciais em ``prb_email_recipients``
+
+Disparo manual (Admin → import / botão de e-mails) chama o job ``report_overdue_daily``
+com ``--force``, executando todas as fases cuja automação esteja habilitada.
+Agendamento: espelha filiais — seed ``report_client_daily`` (migration 036), horário
+independente em Administração → Jobs. Layout HTML reutilizado via ``build_report_html``.
+"""
 
 from __future__ import annotations
 
+import re
 from dataclasses import replace
 from datetime import date, datetime
 from pathlib import Path
@@ -12,6 +25,7 @@ import pandas as pd
 from limpeza import processar_entregas
 from app.services.job_schedule_service import (
     AUTOMATION_BRANCH,
+    AUTOMATION_CLIENT,
     AUTOMATION_MANAGERIAL,
     JobScheduleService,
 )
@@ -42,6 +56,8 @@ CSV_COLUMNS = [
     ("valor_total", "valor_total"),
     ("motivo_atraso", "motivo_atraso"),
 ]
+
+_DIGITS_RE = re.compile(r"\D+")
 
 
 def _load_frames(csv_path: Path, business_date: date) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -76,6 +92,30 @@ def _filter_branch(df: pd.DataFrame, branch: str) -> pd.DataFrame:
     if df is None or df.empty:
         return df.iloc[0:0].copy() if df is not None else pd.DataFrame()
     return df[df["filial"].astype(str) == str(branch)].copy()
+
+
+def _filter_cnpj(df: pd.DataFrame, cnpj: str) -> pd.DataFrame:
+    """Filtra entregas cujo cnpj_cliente (só dígitos) casa com o CNPJ do cadastro."""
+    if df is None or df.empty:
+        return df.iloc[0:0].copy() if df is not None else pd.DataFrame()
+    target = _DIGITS_RE.sub("", str(cnpj or ""))
+    if not target:
+        return df.iloc[0:0].copy()
+    if "cnpj_cliente" not in df.columns:
+        return df.iloc[0:0].copy()
+
+    def _digits(value: object) -> str:
+        if value is None:
+            return ""
+        try:
+            if pd.isna(value):
+                return ""
+        except (TypeError, ValueError):
+            pass
+        return _DIGITS_RE.sub("", str(value))
+
+    series = df["cnpj_cliente"].map(_digits)
+    return df[series == target].copy()
 
 
 def _phase_due(automation_id: str, ctx: JobContext) -> bool:
@@ -174,6 +214,132 @@ def _run_phase_branch(
         msg = (
             f"Fase filiais: {metrics['sent']} envio(s), "
             f"{metrics['skipped_no_email']} sem e-mail, "
+            f"{len(metrics['errors'])} erro(s)."
+        )
+        complete_run(
+            run_id,
+            JobResult(status=status, message=msg, metrics=metrics),
+        )
+        if status == "failed":
+            raise MailSendError(msg)
+        return metrics
+    except Exception as exc:
+        if not ctx.dry_run:
+            complete_run(
+                run_id,
+                JobResult(status="failed", message=str(exc), metrics={**metrics, "error": type(exc).__name__}),
+            )
+        raise
+
+
+def _run_phase_client(
+    ctx: JobContext,
+    overdue: pd.DataFrame,
+    due_today: pd.DataFrame,
+) -> dict:
+    """Fase clientes: match CNPJ cadastro ↔ entrega.cnpj_cliente; mesmo HTML das filiais."""
+    metrics: dict = {
+        "phase": "client",
+        "sent": 0,
+        "skipped_no_email": 0,
+        "skipped_no_cnpj": 0,
+        "errors": [],
+    }
+    if not _phase_due(AUTOMATION_CLIENT, ctx):
+        metrics["skipped_schedule"] = True
+        ctx.logger.info("Fase clientes fora da janela (--if-due)")
+        return metrics
+
+    run_id: int | None = None
+    if not ctx.dry_run:
+        run_id, early = _begin_phase(ctx, AUTOMATION_CLIENT)
+        if early is not None:
+            metrics["idempotent"] = True
+            metrics["message"] = early.message
+            return metrics
+
+    try:
+        from app.services.client_service import ClientService
+
+        try:
+            clients = ClientService().list_for_reports()
+        except Exception as exc:
+            # US-008 (prb_clients) pode ainda não estar aplicada — não derruba o job.
+            ctx.logger.warning("Fase clientes indisponível: %s", exc)
+            metrics["unavailable"] = True
+            metrics["message"] = str(exc)
+            if not ctx.dry_run and run_id is not None:
+                complete_run(
+                    run_id,
+                    JobResult(
+                        status="success",
+                        message=f"Fase clientes pulada: {exc}",
+                        metrics=metrics,
+                    ),
+                )
+            return metrics
+
+        smtp = None if ctx.dry_run else resolve_smtp_only()
+        for client in clients:
+            cnpj = (client.cnpj or "").strip()
+            digits = _DIGITS_RE.sub("", cnpj)
+            if not digits:
+                metrics["skipped_no_cnpj"] += 1
+                ctx.logger.warning("Cliente %s sem CNPJ válido — pulando", client.name)
+                continue
+            emails = client.emails
+            if not emails:
+                metrics["skipped_no_email"] += 1
+                ctx.logger.warning("Cliente %s (%s) sem e-mails — pulando", client.name, digits)
+                continue
+            cl_overdue = _filter_cnpj(overdue, digits)
+            cl_due = _filter_cnpj(due_today, digits)
+            audience = client.name
+            subject = build_report_subject(audience)
+            html = build_report_html(
+                audience_name=audience,
+                overdue=cl_overdue,
+                due_today=cl_due,
+            )
+            if ctx.dry_run:
+                metrics["sent"] += len(emails)
+                ctx.logger.info(
+                    "Dry-run cliente %s → %s (atrasados=%s vence_hoje=%s)",
+                    audience,
+                    emails,
+                    len(cl_overdue),
+                    len(cl_due),
+                )
+                continue
+            assert smtp is not None
+            try:
+                send_report_email(
+                    config=smtp,
+                    subject=subject,
+                    body=_plain_fallback(audience),
+                    html_body=html,
+                    to_emails=emails,
+                    attachment=None,
+                )
+                metrics["sent"] += len(emails)
+                ctx.logger.info(
+                    "Enviado cliente %s → %s (atrasados=%s vence_hoje=%s)",
+                    audience,
+                    emails,
+                    len(cl_overdue),
+                    len(cl_due),
+                )
+            except Exception as exc:
+                metrics["errors"].append({"client": audience, "cnpj": digits, "error": str(exc)})
+                ctx.logger.exception("Falha envio cliente %s", audience)
+
+        if ctx.dry_run:
+            return metrics
+        status = "failed" if metrics["errors"] and metrics["sent"] == 0 else "success"
+        msg = (
+            f"Fase clientes: {metrics['sent']} envio(s), "
+            f"{metrics['skipped_no_email']} sem e-mail, "
+            f"{metrics['skipped_no_cnpj']} sem CNPJ, "
             f"{len(metrics['errors'])} erro(s)."
         )
         complete_run(
@@ -306,6 +472,7 @@ def execute(ctx: JobContext) -> JobResult:
                 ctx.logger.info("Snapshot: %s", snap.message)
 
         branch_metrics = _run_phase_branch(ctx, overdue, due_today)
+        client_metrics = _run_phase_client(ctx, overdue, due_today)
         managerial_metrics = _run_phase_managerial(ctx, overdue, due_today)
 
         metrics = {
@@ -314,10 +481,12 @@ def execute(ctx: JobContext) -> JobResult:
             "artifact": str(out_path),
             "snapshot": snapshot_metrics,
             "branch": branch_metrics,
+            "client": client_metrics,
             "managerial": managerial_metrics,
         }
         msg = (
             f"Job concluído. Filiais sent={branch_metrics.get('sent', 0)}; "
+            f"clientes sent={client_metrics.get('sent', 0)}; "
             f"gerencial sent={managerial_metrics.get('sent', 0)}; "
             f"snapshot={snapshot_metrics.get('status')}."
         )

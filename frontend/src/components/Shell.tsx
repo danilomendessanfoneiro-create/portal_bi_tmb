@@ -1,14 +1,61 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../auth";
 import "./Shell.css";
 
 export function Shell() {
   const { user, logout } = useAuth();
   const isAdmin = (user?.profile || "").toLowerCase() === "admin";
+  const location = useLocation();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const isVisualizacao =
+    location.pathname === "/" || location.pathname === "" || location.pathname === "/visualizacao";
+
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDrawerOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drawerOpen]);
+
+  const shellClass = [
+    "shell",
+    isVisualizacao ? "shell-bi" : "",
+    drawerOpen ? "drawer-open" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <div className="shell">
-      <aside className="sidebar">
+    <div className={shellClass}>
+      <header className="topbar">
+        <button
+          type="button"
+          className="menu-toggle"
+          aria-label={drawerOpen ? "Fechar menu" : "Abrir menu"}
+          aria-expanded={drawerOpen}
+          onClick={() => setDrawerOpen((v) => !v)}
+        >
+          <span className="menu-toggle-bars" aria-hidden />
+        </button>
+        <div className="topbar-title">
+          {isVisualizacao ? "Visualização" : "Portal BI"}
+        </div>
+      </header>
+
+      <div
+        className="drawer-backdrop"
+        aria-hidden={!drawerOpen}
+        onClick={() => setDrawerOpen(false)}
+      />
+
+      <aside className="sidebar" id="app-sidebar">
         <div className="brand">
           <img
             className="brand-logo"
@@ -27,6 +74,7 @@ export function Shell() {
             to="/"
             end
             className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
+            onClick={() => setDrawerOpen(false)}
           >
             Visualização
           </NavLink>
@@ -34,37 +82,53 @@ export function Shell() {
           {isAdmin && (
             <>
               <div className="nav-group">Administração</div>
-              <NavLink to="/users" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
+              <NavLink
+                to="/users"
+                className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
+                onClick={() => setDrawerOpen(false)}
+              >
                 Usuários
               </NavLink>
               <NavLink
                 to="/imports"
                 className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
+                onClick={() => setDrawerOpen(false)}
               >
                 Importação de Dados
+              </NavLink>
+              <NavLink
+                to="/clients"
+                className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
+                onClick={() => setDrawerOpen(false)}
+              >
+                Clientes
               </NavLink>
               <div className="nav-group">Configurações</div>
               <NavLink
                 to="/settings/smtp"
                 className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
+                onClick={() => setDrawerOpen(false)}
               >
                 SMTP
               </NavLink>
               <NavLink
                 to="/settings/recipients"
                 className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
+                onClick={() => setDrawerOpen(false)}
               >
                 Destinatários de E-mail
               </NavLink>
               <NavLink
                 to="/settings/api-integration"
                 className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
+                onClick={() => setDrawerOpen(false)}
               >
                 Integração API
               </NavLink>
               <NavLink
                 to="/settings/schedules"
                 className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
+                onClick={() => setDrawerOpen(false)}
               >
                 Automações
               </NavLink>
@@ -72,6 +136,7 @@ export function Shell() {
                 to="/settings"
                 end
                 className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
+                onClick={() => setDrawerOpen(false)}
               >
                 Visão geral
               </NavLink>

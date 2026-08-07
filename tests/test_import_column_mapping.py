@@ -48,3 +48,20 @@ def test_map_csv_row_persists_dt_recebimento():
     rec = map_csv_row(row)
     assert rec.dt_recebimento == datetime(2025, 12, 29, 13, 26)
     assert rec.dt_entrega is None
+
+
+def test_cnpj_cliente_mapped_from_spreadsheet_header():
+    assert COLUNAS_UTEIS["CNPJ Cliente"] == "cnpj_cliente"
+
+
+def test_map_csv_row_persists_cnpj_cliente():
+    row = pd.Series(
+        {
+            "nro_entrega": "25329371",
+            "cnpj_cliente": "12.345.678/0001-90",
+            "filial": "TMB",
+            "cliente": "CLI",
+        }
+    )
+    rec = map_csv_row(row)
+    assert rec.cnpj_cliente == "12345678000190"

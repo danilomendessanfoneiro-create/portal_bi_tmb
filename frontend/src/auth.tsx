@@ -14,7 +14,7 @@ import type { User } from "./types";
 interface AuthState {
   user: User | null;
   loading: boolean;
-  login: (login: string, password: string) => Promise<void>;
+  login: (login: string, password: string, hcaptchaToken?: string) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
 }
@@ -58,8 +58,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(
-    async (loginName: string, password: string) => {
-      const res = await apiLogin(loginName, password);
+    async (loginName: string, password: string, hcaptchaToken?: string) => {
+      const res = await apiLogin(loginName, password, hcaptchaToken);
       setToken(res.access_token);
       setUser(res.user);
       navigate("/", { replace: true });

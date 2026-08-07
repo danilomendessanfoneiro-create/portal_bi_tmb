@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 from app.integrations.tmselite.exceptions import TmsEliteMappingError
 from app.integrations.tmselite.models import DeliveryRecord
+from app.utils.cnpj import normalize_cnpj
 
 
 def _dig(data: dict[str, Any], *path: str) -> Any:
@@ -23,6 +24,10 @@ def _as_str(value: Any) -> Optional[str]:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _normalize_cnpj_field(value: Any) -> Optional[str]:
+    return normalize_cnpj(value)
 
 
 def _as_float(value: Any) -> Optional[float]:
@@ -77,6 +82,12 @@ def map_delivery_item(item: dict[str, Any]) -> DeliveryRecord:
         cliente=_as_str(_dig(item, "destinatario", "nome")),
         cliente_conta=_as_str(_dig(item, "embarcador", "nome"))
         or _as_str(_dig(item, "cliente", "nome")),
+        cnpj_cliente=_normalize_cnpj_field(
+            _dig(item, "embarcador", "cnpj")
+            or _dig(item, "cliente", "cnpj")
+            or _dig(item, "cnpjCliente")
+        )
+        or None,
         filial=filial,
         cidade_entrega=_as_str(_dig(item, "destinatario", "cidade")),
         uf_entrega=_as_str(_dig(item, "destinatario", "uf")),

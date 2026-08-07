@@ -91,7 +91,7 @@ class ImportRepository:
             sql = """
                 INSERT INTO prb_import_batch_items (
                     batch_id, row_number, remessa_numero, nro_entrega, nota_fiscal, cliente, cliente_conta,
-                    filial, cidade_entrega, uf_entrega, status_entrega, valor_total, qtde_volumes,
+                    cnpj_cliente, filial, cidade_entrega, uf_entrega, status_entrega, valor_total, qtde_volumes,
                     dt_prazo_atual, dt_agendamento, dt_entrega, dt_recebimento, dt_cancelamento,
                     motivo_cancelamento, motivo_atraso, nome_recebedor, dt_cadastro, motorista,
                     remetente, cidade_remetente, uf_remetente, peso_taxado, peso_informado,
@@ -99,7 +99,7 @@ class ImportRepository:
                     created_by, created_on, modified_by, modified_on, enabled
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s,
@@ -118,6 +118,7 @@ class ImportRepository:
                         item.get("nota_fiscal"),
                         item.get("cliente"),
                         item.get("cliente_conta"),
+                        item.get("cnpj_cliente"),
                         item.get("filial"),
                         item.get("cidade_entrega"),
                         item.get("uf_entrega"),

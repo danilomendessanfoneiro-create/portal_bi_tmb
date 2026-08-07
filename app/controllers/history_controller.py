@@ -12,6 +12,12 @@ import streamlit as st
 from app.controllers.navigation import render_bi_filters_panel, resolve_historico_window
 from app.services.access_scope_service import ViewerContext, AccessScopeService
 from app.services.bi_snapshot_service import BiSnapshotService
+from app.utils.responsive import (
+    CHART_CATEGORY_LIMIT,
+    HIST_SERIES_HEIGHT_COMPACT,
+    HISTORICO_TABLE_COLS_PRIORITY,
+    limit_chart_categories,
+)
 from app.utils.style import kpi_card
 
 HIST_DAY_KEY = "bi_hist_detail_day"
@@ -54,6 +60,7 @@ def _clear_day_detail() -> None:
     st.session_state.pop(HIST_DAY_KEY, None)
     st.session_state.pop(HIST_DRILL_KEY, None)
     st.session_state[HIST_SELECT_KEY] = "(nenhum)"
+    st.session_state["bi_hist_drill_select"] = "(nenhum)"
 
 
 def render_historico(
@@ -81,6 +88,7 @@ def render_historico(
         filiais=filter_opts["filiais"],
         clientes=filter_opts["clientes"],
         cidades=filter_opts["cidades"],
+        status_opts=filter_opts.get("statuses") or [],
         hoje=hoje,
     )
 
@@ -99,6 +107,7 @@ def render_historico(
         clientes=filtros.filtro_cliente or None,
         cidades=filtros.filtro_cidade or None,
         busca=filtros.busca or None,
+        statuses=filtros.filtro_status or None,
     )
 
     if series.empty:
@@ -139,55 +148,15 @@ def render_historico(
         for d in series["business_date"]
     }
 
-    fig = go.Figure(
-        data=[
-            go.Bar(
-                x=day_iso,
-                y=series["overdue_count"],
-                marker_color="#E0042B",
-                customdata=day_iso,
-                hovertemplate="<b>%{x}</b><br>%{y} em atraso<extra></extra>",
-            )
-        ]
-    )
-    fig.update_layout(
-        title="Evolução de entregas em atraso — clique num dia para detalhar",
-        xaxis_title="Dia",
-        yaxis_title="Qtde em atraso",
-        margin=dict(l=20, r=20, t=50, b=40),
-        height=420,
-        clickmode="event+select",
-    )
-    evento = st.plotly_chart(
-        fig,
-        use_container_width=True,
-        on_select="rerun",
-        selection_mode="points",
-        key=HIST_CHART_SERIES_KEY,
-    )
-    pontos = evento.selection.points if evento and evento.selection else []
-    if pontos:
-        raw = pontos[0].get("x") or pontos[0].get("customdata")
-        idx = pontos[0].get("point_number", pontos[0].get("point_index"))
-        picked = _parse_day(raw)
-        if picked is None and idx is not None:
-            try:
-                picked = _parse_day(series.iloc[int(idx)]["business_date"])
-            except (TypeError, ValueError, IndexError):
-                picked = None
-        if picked is not None and picked != st.session_state.get(HIST_DAY_KEY):
-            st.session_state[HIST_DAY_KEY] = picked
-            st.session_state.pop(HIST_DRILL_KEY, None)
-            st.session_state[HIST_SELECT_KEY] = _fmt_br(picked)
-            # sem st.rerun(): mantém a aba Histórico e renderiza o detalhe neste run
-
+    # Selectbox como caminho primário no mobile (também útil no desktop)
     opts = ["(nenhum)"] + day_labels
     current_day = st.session_state.get(HIST_DAY_KEY)
-    if HIST_SELECT_KEY not in st.session_state:
-        st.session_state[HIST_SELECT_KEY] = (
-            _fmt_br(current_day) if isinstance(current_day, date) else "(nenhum)"
-        )
-    if st.session_state[HIST_SELECT_KEY] not in opts:
+    desired_label = (
+        _fmt_br(current_day) if isinstance(current_day, date) else "(nenhum)"
+    )
+    if desired_label in opts:
+        st.session_state[HIST_SELECT_KEY] = desired_label
+    elif HIST_SELECT_KEY not in st.session_state or st.session_state[HIST_SELECT_KEY] not in opts:
         st.session_state[HIST_SELECT_KEY] = "(nenhum)"
 
     c_sel, c_clr = st.columns([3, 1])
@@ -196,7 +165,7 @@ def render_historico(
             "Dia para detalhar",
             opts,
             key=HIST_SELECT_KEY,
-            help="Fallback se o clique no gráfico não capturar a seleção.",
+            help="Principal no celular; no desktop também pode clicar no gráfico.",
         )
     with c_clr:
         st.markdown("<div style='height:1.7rem'></div>", unsafe_allow_html=True)
@@ -215,9 +184,52 @@ def render_historico(
             st.session_state[HIST_DAY_KEY] = selected
             st.session_state.pop(HIST_DRILL_KEY, None)
     elif chosen == "(nenhum)" and st.session_state.get(HIST_DAY_KEY) is not None:
-        # selectbox cleared without button
         st.session_state.pop(HIST_DAY_KEY, None)
         st.session_state.pop(HIST_DRILL_KEY, None)
+
+    fig = go.Figure(
+        data=[
+            go.Bar(
+                x=day_iso,
+                y=series["overdue_count"],
+                marker_color="#E0042B",
+                customdata=day_iso,
+                hovertemplate="<b>%{x}</b><br>%{y} em atraso<extra></extra>",
+            )
+        ]
+    )
+    series_h = HIST_SERIES_HEIGHT_COMPACT if len(series) > 20 else min(420, HIST_SERIES_HEIGHT_COMPACT + 40)
+    fig.update_layout(
+        title="Evolução de entregas em atraso — clique num dia ou use o selectbox",
+        xaxis_title="Dia",
+        yaxis_title="Qtde em atraso",
+        margin=dict(l=20, r=20, t=50, b=40),
+        height=series_h,
+        clickmode="event+select",
+    )
+    evento = st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={"displayModeBar": False},
+        on_select="rerun",
+        selection_mode="points",
+        key=HIST_CHART_SERIES_KEY,
+    )
+    pontos = evento.selection.points if evento and evento.selection else []
+    if pontos:
+        raw = pontos[0].get("x") or pontos[0].get("customdata")
+        idx = pontos[0].get("point_number", pontos[0].get("point_index"))
+        picked = _parse_day(raw)
+        if picked is None and idx is not None:
+            try:
+                picked = _parse_day(series.iloc[int(idx)]["business_date"])
+            except (TypeError, ValueError, IndexError):
+                picked = None
+        if picked is not None and picked != st.session_state.get(HIST_DAY_KEY):
+            st.session_state[HIST_DAY_KEY] = picked
+            st.session_state.pop(HIST_DRILL_KEY, None)
+            # Não alterar HIST_SELECT_KEY aqui (widget já instanciado) — sync no próximo run
+            st.rerun()
 
     with st.expander("Dados agregados"):
         st.dataframe(
@@ -251,6 +263,7 @@ def render_historico(
         clientes=filtros.filtro_cliente or None,
         cidades=filtros.filtro_cidade or None,
         busca=filtros.busca or None,
+        statuses=filtros.filtro_status or None,
     )
 
 
@@ -263,12 +276,13 @@ def _render_detalhe_do_dia(
     clientes: Optional[list[str]],
     cidades: Optional[list[str]],
     busca: Optional[str],
+    statuses: Optional[list[str]] = None,
 ) -> None:
     st.markdown("---")
     st.markdown(f"### Detalhe do dia {_fmt_br(business_date)}")
     st.caption(
         "Fotografia histórica das entregas em atraso (snapshot). "
-        "Não reconstrói “vence hoje” / “em dia”."
+        "Não reconstrói vence hoje / em dia."
     )
 
     df = svc.list_overdue_for_day(
@@ -277,83 +291,69 @@ def _render_detalhe_do_dia(
         clientes=clientes,
         cidades=cidades,
         busca=busca,
+        statuses=statuses,
     )
-
-    dim_col = "filial" if viewer.is_admin else "cliente"
-    drill = st.session_state.get(HIST_DRILL_KEY)
-    if drill and dim_col in df.columns and not df.empty:
-        valid = set(df[dim_col].dropna().astype(str).unique())
-        if str(drill) not in valid:
-            st.session_state.pop(HIST_DRILL_KEY, None)
-            drill = None
-
-    df_view = df.copy()
-    if drill and dim_col in df_view.columns:
-        df_view = df_view[df_view[dim_col].astype(str) == str(drill)]
 
     if df.empty:
         st.info("Nenhuma entrega em atraso neste dia para os filtros selecionados.")
         return
 
-    n = len(df_view)
-    valor = float(df_view["valor_total"].fillna(0).sum()) if "valor_total" in df_view.columns else 0.0
-    media_dias = (
-        float(df_view["dias_atraso"].mean()) if n and "dias_atraso" in df_view.columns else 0.0
-    )
+    dim_col = "filial" if viewer.is_admin else "cliente"
+    drill = st.session_state.get(HIST_DRILL_KEY)
+    if drill and dim_col in df.columns:
+        valid = set(df[dim_col].dropna().astype(str).unique())
+        if str(drill) not in valid:
+            st.session_state.pop(HIST_DRILL_KEY, None)
+            st.session_state["bi_hist_drill_select"] = "(nenhum)"
+            drill = None
 
-    k1, k2, k3 = st.columns(3)
-    with k1:
-        st.markdown(
-            kpi_card("alert", "C0392B", "Em atraso", f"{n}"),
-            unsafe_allow_html=True,
-        )
-    with k2:
-        st.markdown(
-            kpi_card("dollar", "1E8A5F", "Valor em atraso", _fmt_moeda(valor)),
-            unsafe_allow_html=True,
-        )
-    with k3:
-        st.markdown(
-            kpi_card("clock", "B9770E", "Média dias atraso", f"{media_dias:.1f}"),
-            unsafe_allow_html=True,
-        )
-
-    filtros_ativos = []
-    if drill:
-        rotulo = "Filial" if dim_col == "filial" else "Cliente"
-        filtros_ativos.append(f"{rotulo}: <b>{drill}</b>")
-    if filtros_ativos:
-        c_info, c_btn = st.columns([4, 1])
-        with c_info:
-            st.markdown(
-                "Filtro do gráfico: " + " · ".join(filtros_ativos),
-                unsafe_allow_html=True,
-            )
-        with c_btn:
-            if st.button("Limpar drill", width="content", key="bi_hist_clear_drill"):
-                st.session_state.pop(HIST_DRILL_KEY, None)
-                st.rerun()
-
-    # Breakdown usa base do dia (sem drill) para permitir re-seleção
-    title = (
-        "Em atraso por filial"
-        if viewer.is_admin
-        else "Em atraso por cliente"
-    )
+    title = "Em atraso por filial" if viewer.is_admin else "Em atraso por cliente"
     st.markdown(f'<div class="section-title">{title}</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="section-sub">Clique numa barra para filtrar a tabela</div>',
+        '<div class="section-sub">Clique numa barra ou use o selectbox para filtrar a tabela</div>',
         unsafe_allow_html=True,
     )
 
     if dim_col not in df.columns or df[dim_col].dropna().empty:
         st.info("Sem dimensão para o breakdown.")
+        df_view = df.copy()
     else:
+        opcoes_dim = sorted(df[dim_col].dropna().astype(str).unique().tolist())
+        opts_d = ["(nenhum)"] + opcoes_dim
+        if drill and str(drill) in opcoes_dim:
+            st.session_state["bi_hist_drill_select"] = str(drill)
+        elif "bi_hist_drill_select" not in st.session_state:
+            st.session_state["bi_hist_drill_select"] = "(nenhum)"
+        elif st.session_state.get("bi_hist_drill_select") not in opts_d:
+            st.session_state["bi_hist_drill_select"] = "(nenhum)"
+
+        c_sel, c_clr = st.columns([3, 1])
+        with c_sel:
+            escolha_d = st.selectbox(
+                "Filtrar breakdown" if viewer.is_admin else "Cliente (drill)",
+                opts_d,
+                key="bi_hist_drill_select",
+            )
+        with c_clr:
+            st.markdown("<div style='height:1.7rem'></div>", unsafe_allow_html=True)
+            if st.button("Limpar drill", width="content", key="bi_hist_clear_drill"):
+                st.session_state.pop(HIST_DRILL_KEY, None)
+                st.rerun()
+
+        if escolha_d == "(nenhum)":
+            st.session_state.pop(HIST_DRILL_KEY, None)
+            drill = None
+            df_view = df.copy()
+        else:
+            st.session_state[HIST_DRILL_KEY] = escolha_d
+            drill = escolha_d
+            df_view = df[df[dim_col].astype(str) == str(escolha_d)].copy()
+
         agrupado = (
             df.groupby(dim_col).size().reset_index(name="atrasadas").sort_values("atrasadas")
         )
-        if not viewer.is_admin:
-            agrupado = agrupado.tail(12)
+        if len(agrupado) > CHART_CATEGORY_LIMIT:
+            agrupado = limit_chart_categories(agrupado, y_col=dim_col, value_col="atrasadas")
         fig_b = go.Figure(
             go.Bar(
                 x=agrupado["atrasadas"],
@@ -371,7 +371,7 @@ def _render_detalhe_do_dia(
         )
         fig_b.update_layout(
             margin=dict(l=0, r=20, t=10, b=10),
-            height=min(420, 40 + 28 * len(agrupado)),
+            height=min(420, max(260, 40 + 28 * len(agrupado))),
             plot_bgcolor="rgba(0,0,0,0)",
             paper_bgcolor="rgba(0,0,0,0)",
             showlegend=False,
@@ -394,28 +394,37 @@ def _render_detalhe_do_dia(
                 st.session_state[HIST_DRILL_KEY] = str(nova)
                 st.rerun()
 
+    n = len(df_view)
+    valor = float(df_view["valor_total"].fillna(0).sum()) if "valor_total" in df_view.columns else 0.0
+    media_dias = (
+        float(df_view["dias_atraso"].mean()) if n and "dias_atraso" in df_view.columns else 0.0
+    )
+
+    k1, k2, k3 = st.columns(3)
+    with k1:
+        st.markdown(kpi_card("alert", "C0392B", "Em atraso", f"{n}"), unsafe_allow_html=True)
+    with k2:
+        st.markdown(
+            kpi_card("dollar", "1E8A5F", "Valor em atraso", _fmt_moeda(valor)),
+            unsafe_allow_html=True,
+        )
+    with k3:
+        st.markdown(
+            kpi_card("clock", "B9770E", "Média dias atraso", f"{media_dias:.1f}"),
+            unsafe_allow_html=True,
+        )
+
+    if drill:
+        rotulo = "Filial" if dim_col == "filial" else "Cliente"
+        st.caption(f"Filtro ativo — {rotulo}: **{drill}**")
+
     st.markdown('<div class="section-title">Registros do dia</div>', unsafe_allow_html=True)
     if df_view.empty:
         st.info("Nenhum registro para o drill/filtros atuais neste dia.")
         return
 
     tabela = df_view.sort_values("dias_atraso", ascending=False).copy()
-    colunas = [
-        c
-        for c in [
-            "nota_fiscal",
-            "cliente",
-            "filial",
-            "cidade_entrega",
-            "prazo_considerado",
-            "dias_atraso",
-            "valor_total",
-            "status",
-            "status_prazo",
-            "motorista",
-        ]
-        if c in tabela.columns
-    ]
+    colunas = [c for c in HISTORICO_TABLE_COLS_PRIORITY if c in tabela.columns]
     st.dataframe(
         tabela[colunas],
         use_container_width=True,

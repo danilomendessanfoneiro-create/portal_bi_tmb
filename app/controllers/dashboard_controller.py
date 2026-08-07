@@ -17,9 +17,15 @@ from app.controllers.navigation import (
     render_bi_filters_panel,
 )
 from app.services.access_scope_service import AccessScopeError, AccessScopeService
+from app.utils.responsive import (
+    CHART_CATEGORY_LIMIT,
+    CHART_HEIGHT_COMPACT,
+    CHART_HEIGHT_DESKTOP,
+    OPERACIONAL_TABLE_COLS_PRIORITY,
+    limit_chart_categories,
+)
 from app.utils.style import kpi_card
 from limpeza import processar_entregas
-
 FUSO_BR = ZoneInfo("America/Sao_Paulo")
 SITUACOES_PIE = ["Em aberto", "Vencendo hoje", "Em dia"]
 BI_TAB_KEY = "bi_active_tab"
@@ -81,7 +87,7 @@ def render_dashboard() -> None:
         st.session_state[BI_TAB_KEY] = "Operacional"
     aba = st.radio(
         "Visão",
-        ["Operacional", "Histórico"],
+        ["Operacional", "Histórico", "Progressão"],
         horizontal=True,
         label_visibility="collapsed",
         key=BI_TAB_KEY,
@@ -91,6 +97,10 @@ def render_dashboard() -> None:
         from app.controllers.history_controller import render_historico
 
         render_historico(viewer=viewer, scope=scope, hoje=hoje.date())
+    elif aba == "Progressão":
+        from app.controllers.progress_controller import render_progressao
+
+        render_progressao(viewer=viewer, scope=scope, hoje=hoje.date())
     else:
         _render_operacional(
             viewer=viewer,
@@ -249,6 +259,7 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
         filiais=sorted(df["filial"].dropna().astype(str).unique()),
         clientes=sorted(df["cliente"].dropna().astype(str).unique()),
         cidades=sorted(df["cidade_entrega"].dropna().astype(str).unique()),
+        status_opts=sorted(df["status"].dropna().astype(str).unique()) if "status" in df.columns else [],
         periodo_bounds=periodo_bounds,
     )
 
@@ -267,6 +278,9 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
     if filtros.filtro_cidade:
         cidades = [str(x).strip() for x in filtros.filtro_cidade]
         df_base = df_base[df_base["cidade_entrega"].astype(str).str.strip().isin(cidades)]
+    if filtros.filtro_status:
+        statuses = [str(x).strip() for x in filtros.filtro_status]
+        df_base = df_base[df_base["status"].astype(str).str.strip().isin(statuses)]
     if filtros.busca:
         b = filtros.busca.strip().lower()
         df_base = df_base[
@@ -308,31 +322,19 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
     total_entregas = len(df_contexto)
     total_atrasadas = int(df_contexto["atrasado"].sum()) if total_entregas else 0
     total_vencendo = int(df_contexto["vence_hoje"].sum()) if total_entregas else 0
-    valor_atrasado = (
-        float(df_contexto.loc[df_contexto["atrasado"], "valor_total"].sum()) if total_entregas else 0.0
-    )
-    if pd.isna(valor_atrasado):
-        valor_atrasado = 0.0
     pct_atraso = (total_atrasadas / total_entregas * 100) if total_entregas else 0
 
-    def fmt_moeda(v):
-        if pd.isna(v):
-            return "-"
-        return f"R$ {v:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
-
-    k1, k2, k3, k4 = st.columns(4)
+    k1, k2, k3 = st.columns(3)
     with k1:
         st.markdown(kpi_card("package", "1E3056", "Total de entregas", f"{total_entregas}"), unsafe_allow_html=True)
     with k2:
         tipo = "tag-danger" if pct_atraso > 30 else ("tag-warning" if pct_atraso > 10 else "tag-success")
         st.markdown(
-            kpi_card("alert", "C0392B", "Entregas em Aberto", f"{total_atrasadas}", f"{pct_atraso:.1f}% do total", tipo),
+            kpi_card("alert", "C0392B", "Em Atraso", f"{total_atrasadas}", f"{pct_atraso:.1f}% do total", tipo),
             unsafe_allow_html=True,
         )
     with k3:
         st.markdown(kpi_card("clock", "B9770E", "Vencendo hoje", f"{total_vencendo}"), unsafe_allow_html=True)
-    with k4:
-        st.markdown(kpi_card("dollar", "1E8A5F", "Valor em Aberto", fmt_moeda(valor_atrasado)), unsafe_allow_html=True)
 
     st.markdown("<div style='height:1rem;'></div>", unsafe_allow_html=True)
 
@@ -348,6 +350,12 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
                 .groupby("filial").size().reset_index(name="atrasadas")
                 .sort_values("atrasadas", ascending=True)
             )
+            if len(agrupado) > CHART_CATEGORY_LIMIT:
+                st.caption(
+                    f"Exibindo as {CHART_CATEGORY_LIMIT} filiais com mais atrasos "
+                    "(use filtros ou a tabela para o restante)."
+                )
+                agrupado = limit_chart_categories(agrupado, y_col="filial", value_col="atrasadas")
         else:
             st.markdown('<div class="section-title">Entregas em aberto por cliente</div>', unsafe_allow_html=True)
             st.markdown('<div class="section-sub">Clique numa barra para filtrar o dashboard</div>', unsafe_allow_html=True)
@@ -355,9 +363,14 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
                 df_barras[df_barras["atrasado"]]
                 .groupby("cliente").size().reset_index(name="atrasadas")
                 .sort_values("atrasadas", ascending=True)
-                .tail(8)
+                .tail(CHART_CATEGORY_LIMIT)
                 .rename(columns={"cliente": "filial"})
             )
+
+        chart_h = CHART_HEIGHT_DESKTOP
+        # Altura compacta ajuda phone/tablet; desktop wide ainda usa 320 via CSS de espaço
+        if len(agrupado) <= 6:
+            chart_h = CHART_HEIGHT_COMPACT
 
         if agrupado.empty:
             st.info("Nenhuma entrega em aberto para os filtros selecionados.")
@@ -373,7 +386,7 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
                 hovertemplate="<b>%{y}</b><br>%{x} entregas atrasadas<extra></extra>",
             ))
             fig.update_layout(
-                margin=dict(l=0, r=20, t=10, b=10), height=320,
+                margin=dict(l=0, r=20, t=10, b=10), height=max(chart_h, 40 + 28 * len(agrupado)),
                 plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
                 font=dict(family="Inter, sans-serif", color="#1E3056", size=12),
                 xaxis=dict(showgrid=True, gridcolor="#EEF1F6", zeroline=False),
@@ -421,7 +434,7 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
                 hovertemplate="<b>%{label}</b><br>%{value} entregas<extra></extra>",
             ))
             fig2.update_layout(
-                margin=dict(l=0, r=0, t=10, b=0), height=320,
+                margin=dict(l=0, r=0, t=10, b=0), height=CHART_HEIGHT_COMPACT,
                 paper_bgcolor="rgba(0,0,0,0)",
                 font=dict(family="Inter, sans-serif", color="#1E3056", size=12),
                 legend=dict(orientation="h", yanchor="bottom", y=-0.15, x=0.5, xanchor="center"),
@@ -502,7 +515,11 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
         colunas_exibir = ["nota_fiscal", "cliente"]
         if perfil == "admin":
             colunas_exibir.append("filial")
-        colunas_exibir += ["cidade_entrega", "dt_agendamento", "Situação"]
+        colunas_exibir += ["Situação", "dt_agendamento", "cidade_entrega"]
+        # Ordem prioriza cols essenciais (melhor no scroll horizontal mobile)
+        ordered = [c for c in OPERACIONAL_TABLE_COLS_PRIORITY if c in colunas_exibir]
+        ordered += [c for c in colunas_exibir if c not in ordered]
+        colunas_exibir = ordered
 
         evento = st.dataframe(
             df_tabela[colunas_exibir],
@@ -530,54 +547,62 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
 
             st.markdown("<hr class='custom-divider'>", unsafe_allow_html=True)
             st.markdown(f"**Detalhamento — NF {entrega['nota_fiscal']}**")
-            d1, d2, d3, d4 = st.columns(4)
-            with d1:
-                st.caption("Cliente (destinatário)")
-                st.write(entrega["cliente"] if pd.notna(entrega.get("cliente")) else "-")
-                st.caption("Cidade / UF de entrega")
-                st.write(f"{entrega.get('cidade_entrega', '-')} / {entrega.get('uf_entrega', '-')}")
-            with d2:
-                st.caption("Remetente")
-                st.write(entrega.get("remetente") if pd.notna(entrega.get("remetente")) else "-")
-                st.caption("Cidade / UF de origem")
-                st.write(f"{entrega.get('cidade_remetente', '-')} / {entrega.get('uf_remetente', '-')}")
-            with d3:
-                st.caption("Valor total")
-                st.write(fmt_moeda(entrega["valor_total"]))
-                st.caption("Peso (kg)")
-                st.write(
-                    f"{peso:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
-                    if pd.notna(peso) else "-"
-                )
-            with d4:
-                st.caption("Volumes")
-                st.write(entrega.get("qtde_volumes", "-"))
-                st.caption("Motorista")
-                st.write(entrega.get("motorista") if pd.notna(entrega.get("motorista")) else "Não informado")
 
-            e1, e2, e3, e4, e5, e6 = st.columns(6)
-            with e1:
-                st.caption("Data de entrada no sistema")
-                st.write(f"{entrega['dt_cadastro']:%d/%m/%Y %H:%M}" if pd.notna(entrega.get("dt_cadastro")) else "-")
-            with e2:
-                st.caption("Data de recebimento")
-                st.write(
+            def _field(label: str, value) -> None:
+                st.caption(label)
+                st.write(value if value is not None and not (isinstance(value, float) and pd.isna(value)) else "-")
+
+            # Layout empilhável (CSS empilha st.columns no ≤1024; 2 cols no desktop)
+            r1, r2 = st.columns(2)
+            with r1:
+                _field("Cliente (destinatário)", entrega.get("cliente"))
+                _field(
+                    "Cidade / UF de entrega",
+                    f"{entrega.get('cidade_entrega', '-')} / {entrega.get('uf_entrega', '-')}",
+                )
+                _field("Remetente", entrega.get("remetente") if pd.notna(entrega.get("remetente")) else "-")
+                _field(
+                    "Cidade / UF de origem",
+                    f"{entrega.get('cidade_remetente', '-')} / {entrega.get('uf_remetente', '-')}",
+                )
+                _field("Valor total", fmt_moeda(entrega["valor_total"]))
+                _field(
+                    "Peso (kg)",
+                    (
+                        f"{peso:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
+                        if pd.notna(peso)
+                        else "-"
+                    ),
+                )
+            with r2:
+                _field("Volumes", entrega.get("qtde_volumes", "-"))
+                _field(
+                    "Motorista",
+                    entrega.get("motorista") if pd.notna(entrega.get("motorista")) else "Não informado",
+                )
+                _field(
+                    "Data de entrada no sistema",
+                    f"{entrega['dt_cadastro']:%d/%m/%Y %H:%M}" if pd.notna(entrega.get("dt_cadastro")) else "-",
+                )
+                _field(
+                    "Data de recebimento",
                     f"{entrega['dt_recebimento']:%d/%m/%Y %H:%M}"
                     if pd.notna(entrega.get("dt_recebimento"))
-                    else "-"
+                    else "-",
                 )
-            with e3:
-                st.caption("Data de entrega")
-                st.write(f"{entrega['dt_entrega']:%d/%m/%Y}" if pd.notna(entrega.get("dt_entrega")) else "-")
-            with e4:
-                st.caption("Prazo atual")
-                st.write(f"{entrega['dt_prazo_atual']:%d/%m/%Y}" if pd.notna(entrega["dt_prazo_atual"]) else "-")
-            with e5:
-                st.caption("Agendamento")
-                st.write(f"{entrega['dt_agendamento']:%d/%m/%Y}" if pd.notna(entrega["dt_agendamento"]) else "-")
-            with e6:
-                st.caption("Status no sistema")
-                st.write(entrega["status"])
+                _field(
+                    "Data de entrega",
+                    f"{entrega['dt_entrega']:%d/%m/%Y}" if pd.notna(entrega.get("dt_entrega")) else "-",
+                )
+                _field(
+                    "Prazo atual",
+                    f"{entrega['dt_prazo_atual']:%d/%m/%Y}" if pd.notna(entrega.get("dt_prazo_atual")) else "-",
+                )
+                _field(
+                    "Agendamento",
+                    f"{entrega['dt_agendamento']:%d/%m/%Y}" if pd.notna(entrega.get("dt_agendamento")) else "-",
+                )
+                _field("Status no sistema", entrega.get("status"))
             if pd.notna(entrega.get("motivo_atraso")):
                 st.warning(f"Motivo do atraso: {entrega['motivo_atraso']}")
 

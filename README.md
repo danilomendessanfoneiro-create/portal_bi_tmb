@@ -27,6 +27,7 @@ Documentação detalhada:
 | [docs/importacao-manual-planilha.md](docs/importacao-manual-planilha.md) | Upload/validação/importação manual |
 | [docs/paridade-lote-ativo-macros.md](docs/paridade-lote-ativo-macros.md) | Lote ativo e paridade com macros Excel |
 | [docs/analise-prazo-considerado.md](docs/analise-prazo-considerado.md) | Regra de atraso (Dt. Prazo Atual) |
+| [docs/responsividade-mobile.md](docs/responsividade-mobile.md) | Breakpoints, drawer, PWA, checklist mobile |
 | [docs/integracao-api-tmselite.md](docs/integracao-api-tmselite.md) | Integração TMS Elite |
 | [app/api/README.md](app/api/README.md) | Endpoints da API |
 
@@ -97,8 +98,8 @@ Migrations incrementais em `database/migrations/` (até `030`), padrão `prb_*` 
 ### Subir a stack (3 terminais)
 
 ```bash
-# API (Vite proxy aponta para :8001)
-.\.venv\Scripts\python.exe -m uvicorn app.api.main:app --reload --host 127.0.0.1 --port 8001
+# API (Vite proxy aponta para :8003 — evita listeners fantasmas de portas antigas no Windows)
+.\.venv\Scripts\python.exe -m uvicorn app.api.main:app --reload --host 127.0.0.1 --port 8003
 
 # BI
 .\.venv\Scripts\python.exe -m streamlit run app.py --server.baseUrlPath bi --server.port 8501

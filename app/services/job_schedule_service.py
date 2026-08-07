@@ -14,6 +14,7 @@ FREQUENCIES = {"daily", "weekly", "monthly"}
 
 AUTOMATION_BRANCH = "report_branch_daily"
 AUTOMATION_MANAGERIAL = "report_managerial"
+AUTOMATION_CLIENT = "report_client_daily"
 
 
 class JobScheduleError(Exception):
@@ -61,6 +62,8 @@ class JobScheduleService:
 
         if job_id == AUTOMATION_BRANCH and freq != "daily":
             raise JobScheduleError("Automação das filiais permite apenas frequência diária.")
+        if job_id == AUTOMATION_CLIENT and freq != "daily":
+            raise JobScheduleError("Automação dos clientes permite apenas frequência diária.")
 
         clear_weekday = False
         clear_day = False

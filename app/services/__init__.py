@@ -3,6 +3,7 @@ from .user_service import UserService, UserServiceError
 from .access_scope_service import AccessScopeError, AccessScopeService, ViewerContext
 from .smtp_service import SmtpSettingsService, SmtpServiceError
 from .email_recipient_service import EmailRecipientService, RecipientServiceError
+from .client_service import ClientService, ClientServiceError
 from .mail_dispatch_service import MailDispatchService, MailRuntimeConfig
 from .job_schedule_service import JobScheduleError, JobScheduleService
 from .api_settings_service import ApiSettingsService, ApiSettingsServiceError
@@ -19,6 +20,8 @@ __all__ = [
     "SmtpServiceError",
     "EmailRecipientService",
     "RecipientServiceError",
+    "ClientService",
+    "ClientServiceError",
     "MailDispatchService",
     "MailRuntimeConfig",
     "JobScheduleService",

@@ -11,7 +11,7 @@ from app.repositories.job_schedule_repository import JobSchedule
 from app.services.job_schedule_service import JobScheduleService
 from app.utils.report_emails import validate_report_emails
 from worker.adapters.report_html import build_report_html, build_report_subject
-from worker.jobs.report_overdue_daily_impl import _filter_branch, _write_csv
+from worker.jobs.report_overdue_daily_impl import _filter_branch, _filter_cnpj, _write_csv
 from worker.runtime import parse_business_date
 
 
@@ -98,6 +98,21 @@ def test_filter_branch_segregation():
     df = pd.DataFrame({"filial": ["SPO", "CWB"], "nota_fiscal": ["1", "2"]})
     spo = _filter_branch(df, "SPO")
     assert list(spo["nota_fiscal"]) == ["1"]
+
+
+def test_filter_cnpj_normalizes_digits():
+    df = pd.DataFrame(
+        {
+            "cnpj_cliente": ["12.345.678/0001-90", "999", None],
+            "nota_fiscal": ["1", "2", "3"],
+        }
+    )
+    out = _filter_cnpj(df, "12345678000190")
+    assert list(out["nota_fiscal"]) == ["1"]
+    empty = _filter_cnpj(df, "")
+    assert empty.empty
+    missing_col = _filter_cnpj(pd.DataFrame({"nota_fiscal": ["1"]}), "123")
+    assert missing_col.empty
 
 
 def test_build_report_html_empty_nat_nan():

@@ -18,6 +18,30 @@ div[data-testid="collapsedControl"] { display: none !important; }
     padding-right: 1rem !important;
     max-width: 100% !important;
 }
+@media (max-width: 1024px) {
+    .block-container {
+        padding-top: 0.65rem !important;
+        padding-left: 0.65rem !important;
+        padding-right: 0.65rem !important;
+        padding-bottom: 1rem !important;
+    }
+    div[data-testid="stHorizontalBlock"] {
+        flex-wrap: wrap !important;
+    }
+    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"],
+    div[data-testid="stHorizontalBlock"] > div {
+        min-width: 100% !important;
+        flex: 1 1 100% !important;
+        width: 100% !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.kpi-card) > div[data-testid="stColumn"],
+    div[data-testid="stHorizontalBlock"]:has(.kpi-card) > div {
+        min-width: calc(50% - 0.4rem) !important;
+        flex: 1 1 calc(50% - 0.4rem) !important;
+        width: calc(50% - 0.4rem) !important;
+        max-width: calc(50% - 0.4rem) !important;
+    }
+}
 </style>
 """
 

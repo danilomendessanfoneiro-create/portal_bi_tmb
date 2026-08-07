@@ -107,3 +107,27 @@ export interface RecipientListResponse {
   page: number;
   page_size: number;
 }
+
+export interface Client {
+  id: number;
+  name: string;
+  cnpj: string;
+  emails?: string | null;
+  enabled: boolean;
+  created_on?: string | null;
+  modified_on?: string | null;
+}
+
+export interface ClientFormValues {
+  name: string;
+  cnpj: string;
+  emails: string;
+  enabled: boolean;
+}
+
+export interface ClientListResponse {
+  items: Client[];
+  total: number;
+  page: number;
+  page_size: number;
+}

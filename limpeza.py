@@ -27,8 +27,9 @@ from datetime import datetime
 COLUNAS_UTEIS = {
     "Nro. Entrega": "nro_entrega",
     "Nota Fiscal": "nota_fiscal",
-    # Conta comercial (calc1 exclui por esta coluna) ≠ destinatário
+    # Conta comercial (planilha) ≠ destinatário
     "Cliente": "cliente_conta",
+    "CNPJ Cliente": "cnpj_cliente",
     # Destinatário da entrega (paridade com API: destinatario.nome → cliente)
     "Nome Pessoa Visita": "cliente",
     "Sigla Unidade Entrega": "filial",          # unidade da transportadora
@@ -232,6 +233,7 @@ def carregar_dados_postgres() -> pd.DataFrame:
         "nota_fiscal",
         "cliente",
         "cliente_conta",
+        "cnpj_cliente",
         "filial",
         "cidade_entrega",
         "uf_entrega",
@@ -275,8 +277,8 @@ def processar_entregas(data_referencia: datetime | None = None) -> pd.DataFrame:
     for col in ["qtde_volumes", "peso_taxado", "peso_informado"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
-    for col in ["cliente", "cliente_conta", "filial", "status", "cidade_entrega", "uf_entrega",
-                "motorista", "remetente", "cidade_remetente", "uf_remetente", "nro_entrega"]:
+    for col in ["cliente", "cliente_conta", "cnpj_cliente", "filial", "status", "cidade_entrega",
+                "uf_entrega", "motorista", "remetente", "cidade_remetente", "uf_remetente", "nro_entrega"]:
         if col in df.columns:
             df[col] = df[col].astype(str).str.strip().replace({"nan": np.nan, "None": np.nan})
     df = remover_duplicados_e_invalidos(df)

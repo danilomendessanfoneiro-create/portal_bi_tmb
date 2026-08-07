@@ -45,7 +45,7 @@ Cada importação marca as linhas upsertadas com o `batch_id`. Ver [paridade-lot
 
 - `.csv`, `.xlsx`, `.xls`
 - Layout compatível com `dados/entregas_relatorio.csv` / `COLUNAS_UTEIS` em `limpeza.py`
-- Inclui **Cliente** → `cliente_conta` (conta comercial; exclusão das macros calc1)
+- Inclui **Cliente** → `cliente_conta` e **CNPJ Cliente** → `cnpj_cliente`
 - Inclui **Nome Pessoa Visita** → `cliente` (destinatário)
 - Inclui **Dt. Recebimento** → `dt_recebimento` (campo distinto de **Dt. Entrega**)
 - Máximo **20 MB** e **100.000** linhas

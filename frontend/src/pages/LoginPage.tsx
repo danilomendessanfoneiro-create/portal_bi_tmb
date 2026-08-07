@@ -1,14 +1,19 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
+import HCaptcha from "@hcaptcha/react-hcaptcha";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../auth";
 import "./LoginPage.css";
+
+const SITEKEY = (import.meta.env.VITE_HCAPTCHA_SITEKEY as string | undefined)?.trim() || "";
 
 export function LoginPage() {
   const { user, loading, login } = useAuth();
   const [loginName, setLoginName] = useState("");
   const [password, setPassword] = useState("");
+  const [captchaToken, setCaptchaToken] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const captchaRef = useRef<HCaptcha>(null);
 
   if (!loading && user) {
     return <Navigate to="/" replace />;
@@ -17,11 +22,17 @@ export function LoginPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
+    if (SITEKEY && !captchaToken) {
+      setError("Complete o desafio hCaptcha.");
+      return;
+    }
     setSubmitting(true);
     try {
-      await login(loginName.trim(), password);
+      await login(loginName.trim(), password, captchaToken || undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha no login");
+      setCaptchaToken("");
+      captchaRef.current?.resetCaptcha();
     } finally {
       setSubmitting(false);
     }
@@ -61,6 +72,20 @@ export function LoginPage() {
             required
           />
         </div>
+        {SITEKEY ? (
+          <div className="login-captcha">
+            <HCaptcha
+              ref={captchaRef}
+              sitekey={SITEKEY}
+              onVerify={(token) => setCaptchaToken(token)}
+              onExpire={() => setCaptchaToken("")}
+              onError={() => {
+                setCaptchaToken("");
+                setError("Falha ao carregar o hCaptcha.");
+              }}
+            />
+          </div>
+        ) : null}
         <button className="btn btn-primary" type="submit" disabled={submitting} style={{ width: "100%" }}>
           {submitting ? "Entrando…" : "Entrar"}
         </button>

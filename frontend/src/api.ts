@@ -1,4 +1,5 @@
 import type { LoginResponse, User, UserFormValues, UserListResponse } from "./types";
+import { cnpjDigits } from "./utils/cnpj";
 
 const API_URL = (import.meta.env.VITE_API_URL || "/api").replace(/\/$/, "");
 const TOKEN_KEY = "portal_token";
@@ -46,10 +47,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export function login(loginName: string, password: string): Promise<LoginResponse> {
+export function login(
+  loginName: string,
+  password: string,
+  hcaptchaToken?: string,
+): Promise<LoginResponse> {
   return request<LoginResponse>("/auth/login", {
     method: "POST",
-    body: JSON.stringify({ login: loginName, password }),
+    body: JSON.stringify({
+      login: loginName,
+      password,
+      hcaptcha_token: hcaptchaToken || null,
+    }),
   });
 }
 
@@ -237,6 +246,58 @@ export function updateRecipient(
 
 export function deactivateRecipient(id: number): Promise<{ detail: string }> {
   return request(`/settings/recipients/${id}`, { method: "DELETE" });
+}
+
+export function listClients(params: {
+  search?: string;
+  page?: number;
+  page_size?: number;
+  sort_by?: string;
+  sort_dir?: string;
+  include_disabled?: boolean;
+}): Promise<import("./types").ClientListResponse> {
+  const q = new URLSearchParams();
+  if (params.search) q.set("search", params.search);
+  if (params.page) q.set("page", String(params.page));
+  if (params.page_size) q.set("page_size", String(params.page_size));
+  if (params.sort_by) q.set("sort_by", params.sort_by);
+  if (params.sort_dir) q.set("sort_dir", params.sort_dir);
+  if (params.include_disabled) q.set("include_disabled", "true");
+  const qs = q.toString();
+  return request(`/settings/clients${qs ? `?${qs}` : ""}`);
+}
+
+export function createClient(
+  values: import("./types").ClientFormValues,
+): Promise<import("./types").Client> {
+  return request("/settings/clients", {
+    method: "POST",
+    body: JSON.stringify({
+      name: values.name,
+      cnpj: cnpjDigits(values.cnpj),
+      emails: values.emails?.trim() ? values.emails.trim() : null,
+      enabled: values.enabled,
+    }),
+  });
+}
+
+export function updateClient(
+  id: number,
+  values: import("./types").ClientFormValues,
+): Promise<import("./types").Client> {
+  return request(`/settings/clients/${id}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      name: values.name,
+      cnpj: cnpjDigits(values.cnpj),
+      emails: values.emails?.trim() ? values.emails.trim() : "",
+      enabled: values.enabled,
+    }),
+  });
+}
+
+export function deactivateClient(id: number): Promise<{ detail: string }> {
+  return request(`/settings/clients/${id}`, { method: "DELETE" });
 }
 
 export function biUrlWithToken(): string {

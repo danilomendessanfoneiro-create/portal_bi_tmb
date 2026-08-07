@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Garantir que o BI (e e-mails) analisam o **mesmo universo** da última planilha importada, alinhado às macros `calc1`/`calc2`.
+Garantir que o BI (e e-mails) analisam o **mesmo universo** da última planilha importada, alinhado à macro `calcConsolidada`.
 
 ## Regra do lote ativo
 

@@ -1,8 +1,8 @@
 """
 Job: report_overdue_daily
 
-Gera CSV consolidado de atrasos e envia um e-mail aos destinatários diários.
-Implementação completa nas US-003/004; skeleton registra o job.
+Gera CSV consolidado de atrasos e envia e-mails nas fases filiais, clientes (CNPJ)
+e gerencial. Agendamentos: report_branch_daily, report_client_daily, report_managerial.
 """
 
 from __future__ import annotations

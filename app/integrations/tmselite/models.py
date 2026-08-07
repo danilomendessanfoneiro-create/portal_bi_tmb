@@ -14,6 +14,7 @@ class DeliveryRecord:
     nota_fiscal: Optional[str] = None
     cliente: Optional[str] = None
     cliente_conta: Optional[str] = None
+    cnpj_cliente: Optional[str] = None
     filial: Optional[str] = None
     cidade_entrega: Optional[str] = None
     uf_entrega: Optional[str] = None

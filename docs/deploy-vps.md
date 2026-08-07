@@ -381,8 +381,10 @@ source .venv/bin/activate
 pip install -r requirements.txt
 python database/deploy/run_migrations.py
 
-# Após migrations 027–030 (lote ativo / cliente_conta / dt_recebimento):
-# reimporte a planilha do dia no Admin para etiquetar o lote e recalcular o Histórico.
+# Após migrations 031–039 (cnpj_cliente, progressão, clientes, status_prazo):
+# - Admin → Clientes (CRUD) e seed opcional: python database/deploy/seed_clients_from_csv.py
+# - Progressão no BI só após novos uploads manuais (ou seed demo local)
+# - Reimporte a planilha do dia no Admin para etiquetar o lote e recalcular Histórico/Progressão
 
 cd frontend && npm ci && npm run build && cd ..
 

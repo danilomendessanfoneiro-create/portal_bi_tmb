@@ -1,0 +1,32 @@
+{
+  "name": "Portal BI TMB — Administração",
+  "short_name": "Portal BI",
+  "description": "Administração e visualização do Portal BI de Entregas TMB Logística",
+  "start_url": "/admin/",
+  "scope": "/admin/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1E3056",
+  "theme_color": "#1E3056",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/admin/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/admin/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/admin/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

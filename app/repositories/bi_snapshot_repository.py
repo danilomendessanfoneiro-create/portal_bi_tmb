@@ -149,6 +149,7 @@ class BiSnapshotRepository:
         clientes: Optional[list[str]] = None,
         cidades: Optional[list[str]] = None,
         busca: Optional[str] = None,
+        statuses: Optional[list[str]] = None,
     ) -> list[dict[str, Any]]:
         where = [
             "o.enabled = TRUE",
@@ -166,6 +167,9 @@ class BiSnapshotRepository:
         if cidades:
             where.append("o.cidade_entrega = ANY(%s)")
             params.append(list(cidades))
+        if statuses:
+            where.append("o.status = ANY(%s)")
+            params.append(list(statuses))
         if busca and busca.strip():
             term = f"%{busca.strip()}%"
             where.append("(o.nota_fiscal ILIKE %s OR o.cliente ILIKE %s)")
@@ -191,6 +195,7 @@ class BiSnapshotRepository:
         clientes: Optional[list[str]] = None,
         cidades: Optional[list[str]] = None,
         busca: Optional[str] = None,
+        statuses: Optional[list[str]] = None,
     ) -> list[dict[str, Any]]:
         where = [
             "o.enabled = TRUE",
@@ -207,6 +212,9 @@ class BiSnapshotRepository:
         if cidades:
             where.append("o.cidade_entrega = ANY(%s)")
             params.append(list(cidades))
+        if statuses:
+            where.append("o.status = ANY(%s)")
+            params.append(list(statuses))
         if busca and busca.strip():
             term = f"%{busca.strip()}%"
             where.append("(o.nota_fiscal ILIKE %s OR o.cliente ILIKE %s)")
@@ -257,8 +265,13 @@ class BiSnapshotRepository:
                 f"SELECT DISTINCT cidade_entrega FROM prb_bi_snapshot_overdue o WHERE {where_sql} AND cidade_entrega IS NOT NULL ORDER BY 1",
                 params,
             ).fetchall()
+            stt = conn.execute(
+                f"SELECT DISTINCT status FROM prb_bi_snapshot_overdue o WHERE {where_sql} AND status IS NOT NULL ORDER BY 1",
+                params,
+            ).fetchall()
         return {
             "filiais": [r["filial"] for r in fil],
             "clientes": [r["cliente"] for r in cli],
             "cidades": [r["cidade_entrega"] for r in cid],
+            "statuses": [r["status"] for r in stt],
         }

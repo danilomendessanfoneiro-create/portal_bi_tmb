@@ -21,6 +21,7 @@ from app.repositories.delivery_repository import DeliveryRepository
 from app.repositories.import_repository import ImportRepository
 from app.services.branch_catalog_service import BranchCatalogService
 from app.services.csv_delivery_import_service import map_csv_row
+from app.utils.cnpj import normalize_cnpj
 from limpeza import COLUNAS_UTEIS, carregar_dados_brutos, selecionar_colunas, tratar_tipos
 
 MAX_FILE_BYTES = 20 * 1024 * 1024
@@ -36,6 +37,13 @@ def _is_missing(value: Any) -> bool:
         return bool(pd.isna(value))
     except (TypeError, ValueError):
         return False
+
+
+def _normalize_cnpj_cliente(value: Any) -> Optional[str]:
+    if _is_missing(value):
+        return None
+    digits = normalize_cnpj(str(value))
+    return digits[:14] if digits else None
 
 
 def _as_python_dt(value: Any) -> Any:
@@ -150,9 +158,12 @@ class ManualImportService:
                 {"total_rows": len(items), "status": "uploaded"},
                 actor=actor,
             )
-        except Exception:
+        except ManualImportError:
             stored.unlink(missing_ok=True)
             raise
+        except Exception as exc:
+            stored.unlink(missing_ok=True)
+            raise ManualImportError(f"Falha ao gravar staging do upload: {exc}") from exc
 
     def validate(self, batch_id: int, *, actor: str) -> dict[str, Any]:
         batch = self._imports.get_batch(batch_id)
@@ -320,6 +331,7 @@ class ManualImportService:
                         "nota_fiscal": item.get("nota_fiscal"),
                         "cliente": item.get("cliente"),
                         "cliente_conta": item.get("cliente_conta"),
+                        "cnpj_cliente": item.get("cnpj_cliente"),
                         "filial": item.get("filial"),
                         "cidade_entrega": item.get("cidade_entrega"),
                         "uf_entrega": item.get("uf_entrega"),
@@ -404,6 +416,7 @@ class ManualImportService:
             except Exception:
                 pass
             self._capture_bi_snapshot_after_import(actor=actor)
+            self._capture_progress_snapshot_after_import(batch_id=batch_id, actor=actor)
         except Exception as exc:
             finished = datetime.now()
             duration_ms = int((finished - started).total_seconds() * 1000)
@@ -466,6 +479,35 @@ class ManualImportService:
                 return
         except Exception:
             return
+
+    def _capture_progress_snapshot_after_import(self, *, batch_id: int, actor: str) -> None:
+        """
+        Grava snapshot de Progressão pós calcConsolidada (STATUS PRAZO; sem ENTREGUE).
+        Falha não desfaz a importação. Sync API não chama este hook.
+        """
+        import logging
+
+        log = logging.getLogger("manual_import")
+        try:
+            from app.services.progress_snapshot_service import ProgressSnapshotService
+
+            rows = self._deliveries.list_by_batch_id(batch_id)
+            result = ProgressSnapshotService().capture_for_batch(
+                batch_id,
+                rows,
+                actor=actor,
+            )
+            if result.status == "failed":
+                log.error(
+                    "Falha ao capturar snapshot de progressão batch=%s: %s",
+                    batch_id,
+                    result.message,
+                )
+        except Exception:
+            log.exception(
+                "Erro ao capturar snapshot de progressão após import batch=%s",
+                batch_id,
+            )
 
     def get_batch(self, batch_id: int) -> dict[str, Any]:
         batch = self._imports.get_batch(batch_id)
@@ -550,6 +592,7 @@ class ManualImportService:
                     "cliente_conta": None
                     if _is_missing(row.get("cliente_conta"))
                     else str(row.get("cliente_conta")),
+                    "cnpj_cliente": _normalize_cnpj_cliente(row.get("cnpj_cliente")),
                     "filial": None if _is_missing(row.get("filial")) else str(row.get("filial")),
                     "cidade_entrega": None
                     if _is_missing(row.get("cidade_entrega"))
