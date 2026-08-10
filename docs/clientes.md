@@ -20,3 +20,11 @@ Lê `dados/entregas_relatorio.csv` (colunas `CNPJ Cliente` e `Cliente`), upserta
 .\.venv\Scripts\python.exe database/deploy/seed_clients_from_csv.py
 .\.venv\Scripts\python.exe database/deploy/seed_clients_from_csv.py --dry-run
 ```
+
+No deploy VPS (opcional):
+
+```bash
+./deploy/update.sh --seed-clients
+# ou só o seed:
+python database/deploy/seed_clients_from_csv.py --csv dados/entregas_relatorio.csv
+```

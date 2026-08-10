@@ -72,6 +72,22 @@ def cmd_update(args: argparse.Namespace) -> int:
     if not args.skip_migrate:
         _run([py, "database/deploy/run_migrations.py"], dry_run=dry)
 
+    if args.seed_clients:
+        csv_path = Path(args.seed_clients_csv or "dados/entregas_relatorio.csv")
+        if not csv_path.is_absolute():
+            csv_path = ROOT / csv_path
+        seed_cmd = [py, "database/deploy/seed_clients_from_csv.py", "--csv", str(csv_path)]
+        print(f"==> {' '.join(seed_cmd)}")
+        if not dry:
+            if not csv_path.is_file():
+                print(f"Erro: CSV não encontrado: {csv_path}", file=sys.stderr)
+                print(
+                    "Envie a planilha ou use --seed-clients-csv /caminho/arquivo.csv",
+                    file=sys.stderr,
+                )
+                return 1
+            subprocess.run(seed_cmd, cwd=str(ROOT), check=True)
+
     if not args.skip_frontend:
         npm = _npm()
         frontend = ROOT / "frontend"
@@ -121,10 +137,9 @@ def cmd_update(args: argparse.Namespace) -> int:
         print("(aviso) curl ausente; smoke check pulado")
 
     print("Deploy concluído.")
-    print(
-        "Pós-deploy: smoke /admin /api/health /bi; "
-        "upload planilha (Progressão); seed clientes opcional."
-    )
+    print("Pós-deploy: smoke /admin /api/health /bi; upload planilha (Progressão).")
+    if not args.seed_clients:
+        print("Clientes: rode com --seed-clients se prb_clients estiver vazio.")
     return 0
 
 
@@ -150,6 +165,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Copia units systemd/nginx e recarrega",
     )
     update.add_argument(
+        "--seed-clients",
+        action="store_true",
+        help="Roda seed de prb_clients a partir do CSV",
+    )
+    update.add_argument(
+        "--seed-clients-csv",
+        default="",
+        help="CSV para o seed (default: dados/entregas_relatorio.csv)",
+    )
+    update.add_argument(
         "--health-url",
         default="http://127.0.0.1:8000/api/health",
         help="URL do smoke check",
@@ -170,6 +195,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if getattr(args, "no_health", False):
         args.health_url = ""
+    if getattr(args, "seed_clients_csv", "") and not getattr(args, "seed_clients", False):
+        args.seed_clients = True
     return int(args.func(args))
 
 

@@ -390,6 +390,10 @@ Opções úteis:
 ./deploy/update.sh --branch master --with-units
 python -m deploy update --skip-pull --dry-run
 python -m deploy update --with-units --health-url http://127.0.0.1:8000/api/health
+# Seed de clientes (idempotente; precisa do CSV no servidor):
+./deploy/update.sh --skip-pull --skip-frontend --seed-clients
+python -m deploy update --skip-pull --skip-frontend --no-restart --seed-clients \
+  --seed-clients-csv dados/entregas_relatorio.csv
 ```
 
 Equivalente manual (se preferir passo a passo):
