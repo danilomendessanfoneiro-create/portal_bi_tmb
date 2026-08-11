@@ -337,7 +337,7 @@ sudo -u www-data /opt/portal-bi-tmb/.venv/bin/python -m worker run report_overdu
 1. Abrir `http://IP_DA_VPS/admin/` (depois: `https://SEU_DOMINIO/admin/`)
 2. Login seed (trocar senha na sequência): `admin` / `admin123`
 3. **Configurações → SMTP** — servidor padrão ativo
-4. **Usuários** — filiais + `report_emails`
+4. **Usuários** — filiais + `report_emails` (carga da lista operacional: `python database/deploy/update_filial_report_emails.py`)
 5. **Destinatários** — e-mails gerenciais
 6. **Automações** — horários do relatório **e** dos imports API
 7. **Integração API** — URL, endpoint, token (sem a palavra `Bearer`), marcar padrão
