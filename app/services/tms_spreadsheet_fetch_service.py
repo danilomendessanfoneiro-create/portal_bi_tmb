@@ -46,7 +46,7 @@ class TmsSpreadsheetFetchService:
         password = self._schedules.get_tms_password()
         if not (sched.tms_login_url and sched.tms_username and password):
             raise TmsSpreadsheetFetchError(
-                "Preencha URL, usuário e senha em Automações → Coleta da planilha TMS Elite.",
+                "Preencha URL, usuário e senha em Automações → Importação de pedidos.",
                 step="config",
             )
 

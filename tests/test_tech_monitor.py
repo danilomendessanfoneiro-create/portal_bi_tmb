@@ -11,7 +11,8 @@ from worker.runtime import JobResult
 from app.services.tech_monitor_service import build_monitor_email, notify_visible_robot_run
 
 
-def test_monitor_email_success_and_failure_copy():
+def test_monitor_email_success_and_failure_copy(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "local")
     subject, body = build_monitor_email(
         job_id="fetch_tmselite_spreadsheet",
         status="success",
@@ -31,8 +32,9 @@ def test_monitor_email_success_and_failure_copy():
         message="Importado lote #34 (15420 linhas).",
         run_id=32,
     )
-    assert subject == "Portal BI – Relatório de Execução das Automações – 14/08/2026"
-    assert "Coleta da planilha TMS Elite" in body
+    assert subject == "Portal BI [LOCAL] – Relatório de Execução das Automações – 14/08/2026"
+    assert "Ambiente: local" in body
+    assert "Importação de pedidos" in body
     assert "Identificador: fetch_tmselite_spreadsheet" in body
     assert "Status: SUCESSO" in body
     assert "Resultado: Importado lote #34 (15420 linhas)." in body
@@ -44,6 +46,7 @@ def test_monitor_email_success_and_failure_copy():
     assert "ATENÇÃO – EXISTEM FALHAS" not in body
     assert "Atenciosamente," in body
 
+    monkeypatch.setenv("APP_ENV", "produção")
     fail_subject, fail = build_monitor_email(
         job_id="report_client_daily",
         status="failed",
@@ -60,7 +63,8 @@ def test_monitor_email_success_and_failure_copy():
         error_step="smtp",
         run_id=99,
     )
-    assert fail_subject.startswith("Portal BI – FALHA –")
+    assert fail_subject.startswith("Portal BI [PRODUÇÃO] – FALHA –")
+    assert "Ambiente: produção" in fail
     assert "Status: FALHA" in fail
     assert "ATENÇÃO – EXISTEM FALHAS" in fail
     assert "MOTIVO DA FALHA" in fail

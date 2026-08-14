@@ -11,9 +11,9 @@ Jobs/detalhes: [`servico-jobs.md`](servico-jobs.md) · Runbook geral: [`deploy-v
 |------|---------|
 | Banco | Migrations **040** (credenciais TMS no job), **041** (`run_weekdays`), **042** (`duration_ms`, `error_step`) |
 | Automações (Admin) | Só 4 robôs visíveis; dias da semana; feedback salva sucesso/erro; menu Integração API oculto |
-| Scheduler | `--if-due` exige **ativo + dia ∈ run_weekdays + horário** |
+| Scheduler | `--if-due` exige **ativo + dia ∈ run_weekdays + horário** e só na **janela de 60 min** após `local_time` (depois: e-mail + `--force` manual) |
 | Coleta TMS | Job Playwright `fetch_tmselite_spreadsheet` → import via fluxo manual |
-| Monitoramento | E-mail técnico após success/failed (`TECH_SMTP_*` só no `.env`); corpo com métricas e **MOTIVO DA FALHA** |
+| Monitoramento | E-mail técnico após success/failed (`TECH_SMTP_*` só no `.env`); corpo com **Ambiente** (`APP_ENV`), métricas e **MOTIVO DA FALHA** |
 | Timers | `portal-job-import` roda TMS `--if-due` e depois API daily `--if-due` (API continua desativada por seed) |
 
 ## Pré-requisitos antes do deploy

@@ -63,6 +63,9 @@ def test_schedule_is_due_after_configured_time():
     tz = ZoneInfo("America/Sao_Paulo")
     assert svc.is_due("report_branch_daily", now=datetime(2026, 7, 28, 7, 0, tzinfo=tz))
     assert not svc.is_due("report_branch_daily", now=datetime(2026, 7, 28, 6, 59, tzinfo=tz))
+    assert svc.is_due("report_branch_daily", now=datetime(2026, 7, 28, 8, 0, tzinfo=tz))
+    assert not svc.is_due("report_branch_daily", now=datetime(2026, 7, 28, 8, 1, tzinfo=tz))
+    assert not svc.is_due("report_branch_daily", now=datetime(2026, 7, 28, 17, 45, tzinfo=tz))
 
 
 def test_schedule_weekly_weekday():
@@ -238,8 +241,8 @@ def test_update_rejects_empty_run_weekdays():
         assert "dia" in str(exc).lower()
 
 
-def test_list_hides_api_import_jobs():
-    from app.services.job_schedule_service import HIDDEN_API_AUTOMATIONS
+def test_list_shows_api_jobs_disabled_path():
+    from app.services.job_schedule_service import API_AUTOMATIONS, HIDDEN_API_AUTOMATIONS
 
     class FakeRepo:
         def list_all(self):
@@ -264,14 +267,39 @@ def test_list_hides_api_import_jobs():
             ]
 
     listed = JobScheduleService(repo=FakeRepo()).list()  # type: ignore[arg-type]
-    ids = {s.job_id for s in listed}
-    assert ids == {
-        "fetch_tmselite_spreadsheet",
-        "report_branch_daily",
-        "report_client_daily",
-        "report_managerial",
-    }
-    assert ids.isdisjoint(HIDDEN_API_AUTOMATIONS)
+    ids = [s.job_id for s in listed]
+    assert ids[0] == "fetch_tmselite_spreadsheet"
+    assert "import_deliveries_daily" in ids
+    assert "import_deliveries_initial" in ids
+    assert "import_deliveries" not in ids
+    assert set(API_AUTOMATIONS).issubset(set(ids))
+    assert set(ids).isdisjoint(HIDDEN_API_AUTOMATIONS)
+
+
+def test_api_job_cannot_be_enabled():
+    from app.services.job_schedule_service import JobScheduleError
+
+    class FakeRepo:
+        def get_by_job_id(self, job_id: str):
+            return JobSchedule(
+                id=1,
+                job_id=job_id,
+                local_time="07:00",
+                timezone="America/Sao_Paulo",
+                enabled=False,
+                frequency="daily",
+                run_weekdays=[1, 2, 3, 4, 5, 6],
+            )
+
+        def update(self, *args, **kwargs):
+            raise AssertionError("não deve gravar se tentou ativar")
+
+    svc = JobScheduleService(repo=FakeRepo())  # type: ignore[arg-type]
+    try:
+        svc.update("import_deliveries_daily", enabled=True, actor="admin")
+        assert False, "expected error"
+    except JobScheduleError as exc:
+        assert "desabilitado" in str(exc).lower()
 
 
 def test_visible_robots_if_due_skip_sunday_disabled_and_before_time():
@@ -280,7 +308,8 @@ def test_visible_robots_if_due_skip_sunday_disabled_and_before_time():
     tz = ZoneInfo("America/Sao_Paulo")
     sunday = datetime(2026, 8, 16, 9, 0, tzinfo=tz)
     tuesday_early = datetime(2026, 7, 28, 4, 59, tzinfo=tz)
-    tuesday_ok = datetime(2026, 7, 28, 8, 0, tzinfo=tz)
+    tuesday_ok = datetime(2026, 7, 28, 5, 30, tzinfo=tz)
+    tuesday_after_grace = datetime(2026, 7, 28, 6, 1, tzinfo=tz)
 
     class Repo:
         def __init__(self, *, enabled=True, days=None, time="05:00"):
@@ -304,6 +333,7 @@ def test_visible_robots_if_due_skip_sunday_disabled_and_before_time():
         assert not JobScheduleService(repo=Repo(enabled=False)).is_due(job_id, now=tuesday_ok)  # type: ignore[arg-type]
         assert not JobScheduleService(repo=Repo(time="05:00")).is_due(job_id, now=tuesday_early)  # type: ignore[arg-type]
         assert JobScheduleService(repo=Repo(time="05:00")).is_due(job_id, now=tuesday_ok)  # type: ignore[arg-type]
+        assert not JobScheduleService(repo=Repo(time="05:00")).is_due(job_id, now=tuesday_after_grace)  # type: ignore[arg-type]
 
 
 def test_report_phases_skip_when_if_due_not_met(monkeypatch):

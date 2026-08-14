@@ -8,6 +8,7 @@ User=www-data
 Group=www-data
 WorkingDirectory=/opt/portal-bi-tmb
 EnvironmentFile=/opt/portal-bi-tmb/.env
+Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 ExecStart=/opt/portal-bi-tmb/.venv/bin/python -m worker run fetch_tmselite_spreadsheet --if-due
 ExecStart=/opt/portal-bi-tmb/.venv/bin/python -m worker run import_deliveries_daily --if-due
 

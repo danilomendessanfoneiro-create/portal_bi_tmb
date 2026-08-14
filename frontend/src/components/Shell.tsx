@@ -126,6 +126,13 @@ export function Shell() {
                 Automações
               </NavLink>
               <NavLink
+                to="/settings/api-integration"
+                className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
+                onClick={() => setDrawerOpen(false)}
+              >
+                Integração API
+              </NavLink>
+              <NavLink
                 to="/settings"
                 end
                 className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}

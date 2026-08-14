@@ -14,7 +14,7 @@ python -m worker run report_overdue_daily --if-due
 Flags:
 - `--dry-run` — gera CSV de auditoria e simula fases **sem** enviar e-mail (não grava success de idempotência)
 - `--force` — ignora idempotência do dia (por automação)
-- `--if-due` — avalia cada automação: **ativo + dias da semana (`run_weekdays`) + horário** no timezone do job
+- `--if-due` — avalia cada automação: **ativo + dias da semana (`run_weekdays`) + horário** no timezone do job, apenas na **janela de 60 minutos** após `local_time` (ex.: 05:00 → tenta até 06:00). Fora disso, use `--force` / reprocessamento manual.
 - `--date YYYY-MM-DD` — data de negócio (default: hoje America/Sao_Paulo)
 
 Artefato local (auditoria, **não** anexado ao e-mail): `storage/reports/YYYY-MM-DD/atrasos_consolidado.csv`
@@ -32,7 +32,7 @@ Tela **Configurações → Automações**. O menu **Integração API** e os jobs
 
 `run_weekdays`: 0=Domingo … 6=Sábado. Domingo desmarcado por padrão.
 
-**Regra dos robôs:** só executam via `--if-due` se `enabled` **e** o dia está em `run_weekdays` **e** o relógio local já passou de `local_time`.
+**Regra dos robôs:** só executam via `--if-due` se `enabled` **e** o dia está em `run_weekdays` **e** o relógio local está entre `local_time` e `local_time + 60 min`.
 
 Jobs ocultos (desativados): `import_deliveries_daily`, `import_deliveries_initial`.
 
@@ -113,7 +113,7 @@ sudo systemctl list-timers | grep portal-job
 | `portal-job-report.timer` | `report_overdue_daily --if-due` (também grava snapshot histórico antes do e-mail) |
 | `portal-job-import.timer` | `fetch_tmselite_spreadsheet --if-due` e em seguida `import_deliveries_daily --if-due` |
 
-Os timers disparam a cada 15 minutos; `--if-due` respeita ativo + dias + horário. Jobs da API no `portal-job-import` não disparam enquanto `enabled=false`. Carga inicial API: `import_deliveries_initial --force` (manual, one-shot; job oculto).
+Os timers disparam a cada 15 minutos; `--if-due` respeita ativo + dias + horário **e a janela de 60 min** após o horário. Jobs da API no `portal-job-import` não disparam enquanto `enabled=false`. Carga inicial API: `import_deliveries_initial --force` (manual, one-shot; job oculto).
 
 O disparo manual de e-mails **não** é automático após import de planilha. No Admin → Importação de Dados, o botão **Disparar Envio de E-mails** chama em background:
 

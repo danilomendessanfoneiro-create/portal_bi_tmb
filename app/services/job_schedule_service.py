@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo
 
@@ -12,6 +12,8 @@ from app.utils.secret_box import decrypt_secret, encrypt_secret
 
 TIME_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 FREQUENCIES = {"daily", "weekly", "monthly"}
+# Após o horário agendado, o timer (--if-due) só tenta nesta janela; depois, só manual/--force.
+DUE_GRACE_MINUTES = 60
 
 AUTOMATION_BRANCH = "report_branch_daily"
 AUTOMATION_MANAGERIAL = "report_managerial"
@@ -25,10 +27,13 @@ VISIBLE_AUTOMATIONS = (
     AUTOMATION_CLIENT,
     AUTOMATION_MANAGERIAL,
 )
-HIDDEN_API_AUTOMATIONS = (
-    "import_deliveries",
+API_AUTOMATIONS = (
     "import_deliveries_daily",
     "import_deliveries_initial",
+)
+# Alias legado — não listar na UI
+HIDDEN_API_AUTOMATIONS = (
+    "import_deliveries",
 )
 
 
@@ -59,7 +64,16 @@ class JobScheduleService:
 
     def list(self) -> list[JobSchedule]:
         hidden = set(HIDDEN_API_AUTOMATIONS)
-        return [item for item in self._repo.list_all() if item.job_id not in hidden]
+        items = [item for item in self._repo.list_all() if item.job_id not in hidden]
+        order = {
+            AUTOMATION_TMS_SPREADSHEET: 0,
+            "import_deliveries_daily": 1,
+            "import_deliveries_initial": 2,
+            AUTOMATION_BRANCH: 3,
+            AUTOMATION_CLIENT: 4,
+            AUTOMATION_MANAGERIAL: 5,
+        }
+        return sorted(items, key=lambda s: (order.get(s.job_id, 50), s.job_id))
 
     def update(
         self,
@@ -82,6 +96,13 @@ class JobScheduleService:
         if current is None:
             raise JobScheduleError("Agendamento não encontrado.")
 
+        if job_id in API_AUTOMATIONS:
+            if enabled is True:
+                raise JobScheduleError(
+                    "Job da API permanece desabilitado. Use Importação de pedidos."
+                )
+            enabled = False
+
         if local_time is not None and not TIME_RE.match(local_time.strip()):
             raise JobScheduleError("Horário inválido. Use HH:MM (24h).")
         if timezone is not None:
@@ -99,7 +120,7 @@ class JobScheduleService:
         if job_id == AUTOMATION_CLIENT and freq != "daily":
             raise JobScheduleError("Automação dos clientes permite apenas frequência diária.")
         if job_id == AUTOMATION_TMS_SPREADSHEET and freq != "daily":
-            raise JobScheduleError("Coleta TMS Elite permite apenas frequência diária.")
+            raise JobScheduleError("Importação de pedidos permite apenas frequência diária.")
 
         url = current.tms_login_url
         user = current.tms_username
@@ -119,9 +140,9 @@ class JobScheduleService:
                     raise JobScheduleError("Usuário do TMS é obrigatório.")
                 has_secret = bool(password_encrypted or current.tms_password_encrypted)
                 if not has_secret:
-                    raise JobScheduleError("Senha do TMS é obrigatória para ativar a coleta.")
+                    raise JobScheduleError("Senha do TMS é obrigatória para ativar a importação.")
         elif tms_login_url is not None or tms_username is not None or tms_password:
-            raise JobScheduleError("Credenciais TMS só se aplicam à coleta da planilha.")
+            raise JobScheduleError("Credenciais TMS só se aplicam à Importação de pedidos.")
 
 
         clear_weekday = False
@@ -190,9 +211,9 @@ class JobScheduleService:
             current = current.astimezone(tz)
 
         hour, minute = map(int, sched.local_time.split(":"))
-        scheduled_minutes = hour * 60 + minute
-        now_minutes = current.hour * 60 + current.minute
-        if now_minutes < scheduled_minutes:
+        scheduled_at = current.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        window_end = scheduled_at + timedelta(minutes=DUE_GRACE_MINUTES)
+        if current < scheduled_at or current > window_end:
             return False
 
         days = sched.run_weekdays if sched.run_weekdays is not None else DEFAULT_RUN_WEEKDAYS

@@ -17,7 +17,7 @@ logger = logging.getLogger("tech_monitor")
 TZ_SP = ZoneInfo("America/Sao_Paulo")
 
 JOB_TITLES = {
-    "fetch_tmselite_spreadsheet": "Coleta da planilha TMS Elite",
+    "fetch_tmselite_spreadsheet": "Importação de pedidos",
     "report_branch_daily": "Relatório das Filiais",
     "report_client_daily": "Relatório dos Clientes",
     "report_managerial": "Relatório Gerencial",
@@ -48,6 +48,19 @@ def load_tech_smtp() -> Optional[TechSmtpConfig]:
         sender_name=(os.getenv("TECH_SMTP_FROM_NAME") or "jeverson").strip(),
         to_email=(os.getenv("TECH_SMTP_TO") or "jeverson.abreu@gmail.com").strip(),
     )
+
+
+def resolve_monitor_environment() -> str:
+    """Rótulo do ambiente no e-mail técnico (APP_ENV / TECH_MONITOR_ENV / PUBLIC_ORIGIN)."""
+    explicit = (os.getenv("APP_ENV") or os.getenv("TECH_MONITOR_ENV") or "").strip()
+    if explicit:
+        return explicit
+    origin = (os.getenv("PUBLIC_ORIGIN") or "").strip().lower()
+    if "localhost" in origin or "127.0.0.1" in origin:
+        return "local"
+    if origin:
+        return "produção"
+    return "desconhecido"
 
 
 def _fmt_clock(value: Any) -> str:
@@ -129,10 +142,14 @@ def build_monitor_email(
     label = "FALHA" if failed else "SUCESSO"
     title = JOB_TITLES.get(job_id, job_id)
     date_label = business_date.strftime("%d/%m/%Y")
+    environment = resolve_monitor_environment()
+    env_tag = environment.upper()
     if failed:
-        subject = f"Portal BI – FALHA – Relatório de Execução das Automações – {date_label}"
+        subject = (
+            f"Portal BI [{env_tag}] – FALHA – Relatório de Execução das Automações – {date_label}"
+        )
     else:
-        subject = f"Portal BI – Relatório de Execução das Automações – {date_label}"
+        subject = f"Portal BI [{env_tag}] – Relatório de Execução das Automações – {date_label}"
     overall = "ATENÇÃO – EXISTEM FALHAS" if failed else "SUCESSO"
     result_msg = (message or "").strip() or (
         "Falha na execução." if failed else "Execução concluída."
@@ -149,6 +166,7 @@ def build_monitor_email(
         "",
         "RESUMO",
         "",
+        f"Ambiente: {environment}",
         f"Data: {date_label}",
         f"Robô: {title}",
         f"Identificador: {job_id}",

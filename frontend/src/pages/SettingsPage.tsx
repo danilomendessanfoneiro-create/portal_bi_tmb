@@ -23,6 +23,9 @@ export function SettingsPage() {
         <NavLink to="/settings/schedules" className="nav-link" style={{ color: "var(--navy)" }}>
           Automações — horários e dias dos robôs
         </NavLink>
+        <NavLink to="/settings/api-integration" className="nav-link" style={{ color: "var(--navy)" }}>
+          Integração API — credenciais TMS (jobs desabilitados)
+        </NavLink>
         <NavLink to="/imports" className="nav-link" style={{ color: "var(--navy)" }}>
           Importação de Dados — planilha manual
         </NavLink>
