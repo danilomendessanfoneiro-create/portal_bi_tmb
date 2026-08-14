@@ -14,6 +14,7 @@ Guia passo a passo para **primeira publicação** e **atualizações** na VPS (H
 Documentos relacionados:
 
 - Plano de ação: `.atlas/plans/2026-07-29-publicacao-vps.md`
+- **Release atual (automações/TMS/monitoramento):** [`release-automacoes-monitoramento.md`](release-automacoes-monitoramento.md)
 - Topologia: [`topologia-hibrida.md`](topologia-hibrida.md)
 - Jobs / automações: [`servico-jobs.md`](servico-jobs.md)
 - Integração API: [`integracao-api-tmselite.md`](integracao-api-tmselite.md)
@@ -163,6 +164,16 @@ BI_PUBLIC_URL=http://IP_DA_VPS/bi
 # API_PUBLIC_URL=https://SEU_DOMINIO/api
 # ADMIN_PUBLIC_URL=https://SEU_DOMINIO/admin
 # BI_PUBLIC_URL=https://SEU_DOMINIO/bi
+
+# SMTP técnico (monitoramento dos robôs; senha só aqui, nunca na UI)
+TECH_SMTP_HOST=smtp.gmail.com
+TECH_SMTP_PORT=587
+TECH_SMTP_USER=jeverson.abreu@gmail.com
+TECH_SMTP_PASSWORD=
+TECH_SMTP_FROM=jeverson.abreu@gmail.com
+TECH_SMTP_FROM_NAME=jeverson
+TECH_SMTP_TO=jeverson.abreu@gmail.com
+
 ```
 
 Gerar segredo:
@@ -189,7 +200,7 @@ source .venv/bin/activate
 python database/deploy/run_migrations.py
 ```
 
-Confirme que rodou até a migration mais recente (ex.: `039_add_progress_snapshot_status_prazo.sql`). Em atualizações, rode **sempre** após o `git pull`.
+Confirme que rodou até a migration mais recente (ex.: `042_add_job_run_duration_and_error_step.sql`). Em atualizações, rode **sempre** após o `git pull`.
 
 ---
 
@@ -300,12 +311,12 @@ Renovação: o timer do certbot costuma já ficar ativo (`systemctl list-timers 
 
 ## 11. Jobs / automações (timers) — go-live
 
-Dois timers (a cada 15 min; cada um respeita horário em **Automações** via `--if-due`):
+Dois timers (a cada 15 min; cada um respeita **ativo + dias (`run_weekdays`) + horário** em **Automações** via `--if-due`):
 
 | Unit | Job |
 |------|-----|
-| `portal-job-report.timer` | `report_overdue_daily --if-due` |
-| `portal-job-import.timer` | `import_deliveries_daily --if-due` |
+| `portal-job-report.timer` | `report_overdue_daily --if-due` (filiais / clientes / gerencial) |
+| `portal-job-import.timer` | `fetch_tmselite_spreadsheet --if-due` e em seguida `import_deliveries_daily --if-due` |
 
 ```bash
 sudo cp /opt/portal-bi-tmb/deploy/systemd/portal-job-report.service /etc/systemd/system/
@@ -317,7 +328,11 @@ sudo systemctl enable --now portal-job-report.timer portal-job-import.timer
 sudo systemctl list-timers | grep portal-job
 ```
 
-### Carga inicial (one-shot, após configurar Integração API no Admin)
+O `update.sh` já executa `playwright install chromium` no passo de pip (necessário para a coleta TMS).
+
+### Carga inicial API (one-shot, opcional — job oculto)
+
+Só se ainda usar sync por API (hoje o fluxo principal é a planilha TMS):
 
 ```bash
 sudo -u www-data /opt/portal-bi-tmb/.venv/bin/python -m worker run import_deliveries_initial --force --days 20
@@ -326,24 +341,26 @@ sudo -u www-data /opt/portal-bi-tmb/.venv/bin/python -m worker run import_delive
 ### Testes manuais
 
 ```bash
-sudo -u www-data /opt/portal-bi-tmb/.venv/bin/python -m worker run import_deliveries_daily --force
+sudo -u www-data /opt/portal-bi-tmb/.venv/bin/python -m worker run fetch_tmselite_spreadsheet --dry-run
+sudo -u www-data /opt/portal-bi-tmb/.venv/bin/python -m worker run fetch_tmselite_spreadsheet --force
+sudo -u www-data /opt/portal-bi-tmb/.venv/bin/python -m worker run report_overdue_daily --if-due
 sudo -u www-data /opt/portal-bi-tmb/.venv/bin/python -m worker run report_overdue_daily --force
 ```
 
+`--force` em relatório **envia e-mails operacionais**. Preferir `--if-due` em produção.
 ---
 
 ## 12. Configuração funcional pós-deploy (Admin)
 
 1. Abrir `http://IP_DA_VPS/admin/` (depois: `https://SEU_DOMINIO/admin/`)
 2. Login seed (trocar senha na sequência): `admin` / `admin123`
-3. **Configurações → SMTP** — servidor padrão ativo
-4. **Usuários** — filiais + `report_emails` (carga da lista operacional: `python database/deploy/update_filial_report_emails.py`)
-5. **Destinatários** — e-mails gerenciais
-6. **Automações** — horários do relatório **e** dos imports API
-7. **Integração API** — URL, endpoint, token (sem a palavra `Bearer`), marcar padrão
-8. Rodar `import_deliveries_initial --force` (one-shot)
+3. **Configurações → SMTP** — servidor padrão ativo (relatórios de atraso)
+4. Confirmar **`TECH_SMTP_*`** no `.env` (monitoramento técnico; senha de app; não aparece na UI)
+5. **Usuários** — filiais + `report_emails` (carga: `python database/deploy/update_filial_report_emails.py`)
+6. **Destinatários** / **Clientes** — e-mails gerenciais e por CNPJ
+7. **Automações** — só 4 cards: Coleta TMS, Filiais, Clientes, Gerencial (dias + horário + ativo). Jobs de API e menu Integração API **ocultos**
+8. Preencher credenciais TMS na coleta; dry-run / `--force` conforme [`release-automacoes-monitoramento.md`](release-automacoes-monitoramento.md)
 9. Conferir timers `portal-job-report` e `portal-job-import`
-
 ---
 
 ## 13. Checklist de go-live (fase IP)
@@ -353,12 +370,12 @@ sudo -u www-data /opt/portal-bi-tmb/.venv/bin/python -m worker run report_overdu
 - [ ] `http://IP_DA_VPS/admin/` carrega o SPA
 - [ ] Login admin funciona; senha seed alterada
 - [ ] Visualização / BI embutido abre (`/bi/`)
-- [ ] Migrations aplicadas (tabelas `prb_*`)
-- [ ] SMTP configurado
-- [ ] Integração API salva + `import_deliveries_initial` OK
+- [ ] Migrations aplicadas até **042** (`prb_schema_migrations`)
+- [ ] SMTP da tela configurado (atrasos)
+- [ ] `TECH_SMTP_PASSWORD` no `.env` (monitoramento)
+- [ ] Automações: 4 cards + dias da semana; coleta TMS com credenciais
 - [ ] Timers `portal-job-report` **e** `portal-job-import` ativos
 - [ ] Backup Postgres agendado (ver §15)
-
 ### Checklist fase domínio (depois)
 
 - [ ] DNS A → IP da VPS
@@ -390,6 +407,10 @@ Opções úteis:
 ./deploy/update.sh --branch master --with-units
 python -m deploy update --skip-pull --dry-run
 python -m deploy update --with-units --health-url http://127.0.0.1:8000/api/health
+# Coleta TMS Elite (Playwright): Automações → Coleta da planilha TMS Elite; na VPS:
+#   .venv/bin/python -m playwright install chromium
+#   .venv/bin/python -m worker run fetch_tmselite_spreadsheet --dry-run
+#   .venv/bin/python -m worker run fetch_tmselite_spreadsheet --force
 # Seed de clientes (idempotente; precisa do CSV no servidor):
 ./deploy/update.sh --skip-pull --skip-frontend --seed-clients
 python -m deploy update --skip-pull --skip-frontend --no-restart --seed-clients \
@@ -408,10 +429,11 @@ source .venv/bin/activate
 pip install -r requirements.txt
 python database/deploy/run_migrations.py
 
-# Após migrations 031–039 (cnpj_cliente, progressão, clientes, status_prazo):
-# - Admin → Clientes (CRUD) e seed opcional: python database/deploy/seed_clients_from_csv.py
-# - Progressão no BI só após novos uploads manuais (ou seed demo local)
-# - Reimporte a planilha do dia no Admin para etiquetar o lote e recalcular Histórico/Progressão
+# Após migrations 040–042 (TMS RPA, dias da semana, duração/etapa do run):
+# - Preencher TECH_SMTP_* no .env (monitoramento)
+# - Admin → Automações: dias + horário; coleta TMS com URL/usuário/senha
+# - Playwright Chromium já vem no update.sh (passo pip)
+# Ver docs/release-automacoes-monitoramento.md
 
 cd frontend && npm ci && npm run build && cd ..
 
@@ -471,10 +493,12 @@ Migrations SQL são incrementais — **não** reverta migration já aplicada sem
 | 502 em `/api` | API no ar? `curl 127.0.0.1:8000/api/health` |
 | Admin 404 assets | `frontend/dist` existe? `alias` nginx |
 | Erro DB | `DATABASE_URL`, senha, `pg_isready`, grants |
-| Job não dispara | `systemctl list-timers`; Automações no Admin; `--force` manual |
+| Job não dispara | `systemctl list-timers`; Automações (ativo+dias+horário); `--force` manual |
+| Sem e-mail técnico | `TECH_SMTP_PASSWORD` no `.env`; log `tech_monitor` / journal do job |
+| Coleta TMS falha | Playwright Chromium; credenciais na Automações; traces em `storage/rpa/traces/` |
 | BI Operacional vazio / “nenhum lote ativo” | Reimporte a planilha (marca `dataset_batch_id`) ou rode sync API |
 | Histórico do dia desatualizado após planilha | Import deve usar `capture_replace`; confirme migration e reimporte |
-| 401 TMS Elite | token sem prefixo `Bearer `; config padrão ativa |
+| 401 TMS Elite (API) | token sem prefixo `Bearer `; config padrão ativa |
 
 ---
 

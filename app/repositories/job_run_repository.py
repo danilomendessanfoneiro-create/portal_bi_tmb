@@ -50,27 +50,37 @@ class JobRunRepository:
         metrics: Optional[dict[str, Any]] = None,
         artifact_path: Optional[str] = None,
         actor: str = "worker",
-    ) -> None:
+    ) -> Optional[dict[str, Any]]:
+        payload = dict(metrics or {})
+        error_step = payload.get("step") or payload.get("error_step")
         sql = """
             UPDATE prb_job_runs SET
                 status = %s,
                 finished_on = NOW(),
+                duration_ms = GREATEST(
+                    0,
+                    FLOOR(EXTRACT(EPOCH FROM (NOW() - started_on)) * 1000)
+                )::int,
+                error_step = %s,
                 message = %s,
                 metrics_json = %s,
                 artifact_path = %s,
                 modified_by = %s,
                 modified_on = NOW()
             WHERE id = %s
+            RETURNING *
         """
         with get_connection() as conn:
-            conn.execute(
+            row = conn.execute(
                 sql,
                 [
                     status,
+                    str(error_step) if error_step else None,
                     message or None,
-                    json.dumps(metrics or {}, ensure_ascii=False),
+                    json.dumps(payload, ensure_ascii=False),
                     artifact_path,
                     actor,
                     run_id,
                 ],
-            )
+            ).fetchone()
+        return dict(row) if row else None

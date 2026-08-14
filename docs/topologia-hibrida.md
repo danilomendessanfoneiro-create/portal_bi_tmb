@@ -33,8 +33,10 @@ Futuro: trocar o alvo do iframe de Streamlit para Apache Superset sem mudar o sh
 | Usuários | CRUD; e-mails de relatório por filial (`report_emails`) |
 | Configurações → SMTP | Servidor de e-mail padrão |
 | Configurações → Destinatários | Destinatários gerenciais |
-| Configurações → Automações | Horários filiais + gerencial |
+| Configurações → Automações | Coleta TMS + relatórios (dias da semana, horário, ativo) |
 | Visualização | BI embutido |
+
+Menu Integração API oculto no shell (rota/backend preservados).
 
 ## Processos na VPS
 
@@ -42,9 +44,9 @@ Futuro: trocar o alvo do iframe de Streamlit para Apache Superset sem mudar o sh
 |---|---|---|
 | API | `portal-api.service` | 8000 |
 | BI | `portal-bi.service` | 8501 |
-| Job relatório | `portal-job-report.timer` | CLI `report_overdue_daily --if-due` |
-| Job import API | `portal-job-import.timer` | CLI `import_deliveries_daily --if-due` |
+| Job relatório | `portal-job-report.timer` | `report_overdue_daily --if-due` |
+| Job coleta/import | `portal-job-import.timer` | `fetch_tmselite_spreadsheet --if-due` + `import_deliveries_daily --if-due` |
 | Admin | nginx static | — |
 | DB | postgresql | 5432 |
 
-Ver também: [`docs/deploy-vps.md`](deploy-vps.md), [`docs/servico-jobs.md`](servico-jobs.md) e pasta `deploy/`.
+Ver também: [`docs/deploy-vps.md`](deploy-vps.md), [`docs/servico-jobs.md`](servico-jobs.md), [`docs/release-automacoes-monitoramento.md`](release-automacoes-monitoramento.md) e pasta `deploy/`.

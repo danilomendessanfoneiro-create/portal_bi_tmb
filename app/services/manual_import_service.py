@@ -260,7 +260,7 @@ class ManualImportService:
             updated = self._imports.get_batch(batch_id) or updated
         return updated
 
-    def start_import(self, batch_id: int, *, actor: str) -> dict[str, Any]:
+    def start_import(self, batch_id: int, *, actor: str, wait: bool = False) -> dict[str, Any]:
         batch = self._imports.get_batch(batch_id)
         if not batch:
             raise ManualImportError("Lote não encontrado.")
@@ -286,12 +286,15 @@ class ManualImportService:
             actor=actor,
         )
 
-        thread = threading.Thread(
-            target=self._run_import_job,
-            kwargs={"batch_id": batch_id, "actor": actor},
-            daemon=True,
-        )
-        thread.start()
+        if wait:
+            self._run_import_job(batch_id=batch_id, actor=actor)
+        else:
+            thread = threading.Thread(
+                target=self._run_import_job,
+                kwargs={"batch_id": batch_id, "actor": actor},
+                daemon=True,
+            )
+            thread.start()
         return self._imports.get_batch(batch_id) or batch
 
     def soft_delete(self, batch_id: int, *, actor: str) -> dict[str, Any]:
@@ -460,6 +463,9 @@ class ManualImportService:
 
     def _capture_bi_snapshot_after_import(self, *, actor: str) -> None:
         """Recalcula o snapshot do Histórico do dia com o lote ativo; falha não desfaz a importação."""
+        import logging
+
+        log = logging.getLogger("manual_import")
         try:
             from limpeza import processar_entregas
             from app.services.bi_snapshot_service import BiSnapshotService
@@ -476,8 +482,11 @@ class ManualImportService:
                 source_job_id="manual_import",
             )
             if snap.status == "failed":
+                log.warning("Snapshot de histórico não gravado: %s", snap.message)
                 return
+            log.info("Snapshot de histórico gravado run_id=%s rows=%s", snap.run_id, snap.rows)
         except Exception:
+            log.exception("Erro ao capturar snapshot de histórico após import")
             return
 
     def _capture_progress_snapshot_after_import(self, *, batch_id: int, actor: str) -> None:
@@ -502,6 +511,13 @@ class ManualImportService:
                     "Falha ao capturar snapshot de progressão batch=%s: %s",
                     batch_id,
                     result.message,
+                )
+            else:
+                log.info(
+                    "Snapshot de progressão batch=%s status=%s rows=%s",
+                    batch_id,
+                    result.status,
+                    result.rows,
                 )
         except Exception:
             log.exception(

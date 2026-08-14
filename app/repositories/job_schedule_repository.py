@@ -20,10 +20,20 @@ class JobSchedule:
     frequency: str = "daily"
     weekday: Optional[int] = None
     day_of_month: Optional[int] = None
+    tms_login_url: Optional[str] = None
+    tms_username: Optional[str] = None
+    tms_password_encrypted: Optional[str] = None
+    run_weekdays: Optional[list[int]] = None
     created_by: Optional[str] = None
     created_on: Optional[datetime] = None
     modified_by: Optional[str] = None
     modified_on: Optional[datetime] = None
+
+
+def _weekdays(value: Any) -> list[int]:
+    if value is None:
+        return [1, 2, 3, 4, 5, 6]
+    return [int(v) for v in list(value)]
 
 
 def _row(row: dict[str, Any]) -> JobSchedule:
@@ -37,6 +47,10 @@ def _row(row: dict[str, Any]) -> JobSchedule:
         frequency=(row.get("frequency") or "daily").lower(),
         weekday=row.get("weekday"),
         day_of_month=row.get("day_of_month"),
+        tms_login_url=row.get("tms_login_url"),
+        tms_username=row.get("tms_username"),
+        tms_password_encrypted=row.get("tms_password_encrypted"),
+        run_weekdays=_weekdays(row.get("run_weekdays")),
         created_by=row.get("created_by"),
         created_on=row.get("created_on"),
         modified_by=row.get("modified_by"),
@@ -71,6 +85,10 @@ class JobScheduleRepository:
         day_of_month: Optional[int] = None,
         clear_weekday: bool = False,
         clear_day_of_month: bool = False,
+        tms_login_url: Optional[str] = None,
+        tms_username: Optional[str] = None,
+        tms_password_encrypted: Optional[str] = None,
+        run_weekdays: Optional[list[int]] = None,
         actor: str,
     ) -> Optional[JobSchedule]:
         current = self.get_by_job_id(job_id)
@@ -103,6 +121,18 @@ class JobScheduleRepository:
         elif day_of_month is not None:
             fields.append("day_of_month = %s")
             params.append(day_of_month)
+        if tms_login_url is not None:
+            fields.append("tms_login_url = %s")
+            params.append(tms_login_url)
+        if tms_username is not None:
+            fields.append("tms_username = %s")
+            params.append(tms_username)
+        if tms_password_encrypted is not None:
+            fields.append("tms_password_encrypted = %s")
+            params.append(tms_password_encrypted)
+        if run_weekdays is not None:
+            fields.append("run_weekdays = %s")
+            params.append(run_weekdays)
         if not fields:
             return current
         fields.append("modified_by = %s")

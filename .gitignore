@@ -11,6 +11,7 @@ frontend/.env
 *.log
 storage/reports/
 storage/imports/
+storage/rpa/
 logs/jobs/
 .cursor/
 Untitled

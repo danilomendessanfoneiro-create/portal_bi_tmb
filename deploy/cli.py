@@ -68,6 +68,7 @@ def cmd_update(args: argparse.Namespace) -> int:
 
     if not args.skip_pip:
         _run([py, "-m", "pip", "install", "-r", "requirements.txt"], dry_run=dry)
+        _run([py, "-m", "playwright", "install", "chromium"], dry_run=dry)
 
     if not args.skip_migrate:
         _run([py, "database/deploy/run_migrations.py"], dry_run=dry)
@@ -137,7 +138,11 @@ def cmd_update(args: argparse.Namespace) -> int:
         print("(aviso) curl ausente; smoke check pulado")
 
     print("Deploy concluído.")
-    print("Pós-deploy: smoke /admin /api/health /bi; upload planilha (Progressão).")
+    print("Pós-deploy:")
+    print("  - smoke /admin /api/health /bi")
+    print("  - confirmar migrations 040–042 e TECH_SMTP_* no .env")
+    print("  - Automações: 4 cards + dias; coleta TMS + timers")
+    print("  - ver docs/release-automacoes-monitoramento.md")
     if not args.seed_clients:
         print("Clientes: rode com --seed-clients se prb_clients estiver vazio.")
     return 0

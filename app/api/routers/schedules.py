@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.api.deps import require_admin
 from app.models import User
@@ -24,6 +24,10 @@ class ScheduleOut(BaseModel):
     weekday: Optional[int] = None
     day_of_month: Optional[int] = None
     enabled: bool
+    tms_login_url: Optional[str] = None
+    tms_username: Optional[str] = None
+    has_tms_password: bool = False
+    run_weekdays: list[int] = Field(default_factory=lambda: [1, 2, 3, 4, 5, 6])
 
 
 class ScheduleUpdateBody(BaseModel):
@@ -33,6 +37,10 @@ class ScheduleUpdateBody(BaseModel):
     weekday: Optional[int] = None
     day_of_month: Optional[int] = None
     enabled: Optional[bool] = None
+    tms_login_url: Optional[str] = None
+    tms_username: Optional[str] = None
+    tms_password: Optional[str] = None
+    run_weekdays: Optional[list[int]] = None
 
 
 def _to_out(item) -> ScheduleOut:
@@ -46,6 +54,10 @@ def _to_out(item) -> ScheduleOut:
         weekday=item.weekday,
         day_of_month=item.day_of_month,
         enabled=item.enabled,
+        tms_login_url=item.tms_login_url,
+        tms_username=item.tms_username,
+        has_tms_password=bool(item.tms_password_encrypted),
+        run_weekdays=list(item.run_weekdays or [1, 2, 3, 4, 5, 6]),
     )
 
 
@@ -77,6 +89,10 @@ def update_schedule(
             weekday=body.weekday,
             day_of_month=body.day_of_month,
             enabled=body.enabled,
+            tms_login_url=body.tms_login_url,
+            tms_username=body.tms_username,
+            tms_password=body.tms_password,
+            run_weekdays=body.run_weekdays,
             actor=admin.login,
         )
     except JobScheduleError as exc:

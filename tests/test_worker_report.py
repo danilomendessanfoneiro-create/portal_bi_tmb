@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 
 from app.repositories.job_schedule_repository import JobSchedule
-from app.services.job_schedule_service import JobScheduleService
+from app.services.job_schedule_service import JobScheduleError, JobScheduleService
 from app.utils.report_emails import validate_report_emails
 from worker.adapters.report_html import build_report_html, build_report_subject
 from worker.jobs.report_overdue_daily_impl import _filter_branch, _filter_cnpj, _write_csv
@@ -83,6 +83,256 @@ def test_schedule_weekly_weekday():
     # 2026-07-28 is Tuesday
     assert svc.is_due("report_managerial", now=datetime(2026, 7, 28, 8, 0, tzinfo=tz))
     assert not svc.is_due("report_managerial", now=datetime(2026, 7, 29, 8, 0, tzinfo=tz))
+
+
+def test_tms_schedule_rejects_credentials_on_other_jobs():
+    class FakeRepo:
+        def get_by_job_id(self, job_id: str):
+            return JobSchedule(
+                id=1,
+                job_id=job_id,
+                local_time="07:00",
+                timezone="America/Sao_Paulo",
+                enabled=True,
+                frequency="daily",
+            )
+
+        def update(self, *args, **kwargs):
+            raise AssertionError("não deve gravar")
+
+    svc = JobScheduleService(repo=FakeRepo())  # type: ignore[arg-type]
+    try:
+        svc.update("report_branch_daily", tms_username="DANILO", actor="admin")
+        assert False, "expected error"
+    except JobScheduleError as exc:
+        assert "TMS" in str(exc)
+
+
+def test_tms_schedule_requires_password_when_enabling():
+    class FakeRepo:
+        def get_by_job_id(self, job_id: str):
+            return JobSchedule(
+                id=9,
+                job_id=job_id,
+                local_time="05:00",
+                timezone="America/Sao_Paulo",
+                enabled=False,
+                frequency="daily",
+                tms_login_url="https://tmblogistica.tmselite.com/login",
+                tms_username="DANILO",
+            )
+
+        def update(self, *args, **kwargs):
+            raise AssertionError("não deve gravar")
+
+    svc = JobScheduleService(repo=FakeRepo())  # type: ignore[arg-type]
+    try:
+        svc.update("fetch_tmselite_spreadsheet", enabled=True, actor="admin")
+        assert False, "expected error"
+    except JobScheduleError as exc:
+        assert "Senha" in str(exc)
+
+
+def test_tms_schedule_encrypts_password():
+    captured: dict = {}
+
+    class FakeRepo:
+        def get_by_job_id(self, job_id: str):
+            return JobSchedule(
+                id=9,
+                job_id=job_id,
+                local_time="05:00",
+                timezone="America/Sao_Paulo",
+                enabled=False,
+                frequency="daily",
+                tms_login_url="https://tmblogistica.tmselite.com/login",
+                tms_username="DANILO",
+            )
+
+        def update(self, job_id, **kwargs):
+            captured.update(kwargs)
+            return JobSchedule(
+                id=9,
+                job_id=job_id,
+                local_time=kwargs.get("local_time") or "05:00",
+                timezone="America/Sao_Paulo",
+                enabled=True,
+                frequency="daily",
+                tms_login_url="https://tmblogistica.tmselite.com/login",
+                tms_username="DANILO",
+                tms_password_encrypted=kwargs.get("tms_password_encrypted"),
+            )
+
+    svc = JobScheduleService(repo=FakeRepo())  # type: ignore[arg-type]
+    updated = svc.update(
+        "fetch_tmselite_spreadsheet",
+        enabled=True,
+        tms_password="secret-test",
+        actor="admin",
+    )
+    assert updated.enabled
+    enc = captured.get("tms_password_encrypted") or ""
+    assert enc.startswith("enc:v1:")
+    assert "secret-test" not in enc
+
+
+def test_schedule_is_due_respects_run_weekdays_and_enabled():
+    class FakeRepo:
+        def get_by_job_id(self, job_id: str):
+            return JobSchedule(
+                id=1,
+                job_id=job_id,
+                local_time="08:00",
+                timezone="America/Sao_Paulo",
+                enabled=True,
+                frequency="daily",
+                run_weekdays=[1, 2, 3, 4, 5, 6],
+            )
+
+    svc = JobScheduleService(repo=FakeRepo())  # type: ignore[arg-type]
+    tz = ZoneInfo("America/Sao_Paulo")
+    # terça 28/07/2026
+    assert svc.is_due("report_branch_daily", now=datetime(2026, 7, 28, 8, 0, tzinfo=tz))
+    # domingo 16/08/2026
+    assert not svc.is_due("report_branch_daily", now=datetime(2026, 8, 16, 8, 0, tzinfo=tz))
+
+    class Disabled:
+        def get_by_job_id(self, job_id: str):
+            return JobSchedule(
+                id=1,
+                job_id=job_id,
+                local_time="08:00",
+                timezone="America/Sao_Paulo",
+                enabled=False,
+                frequency="daily",
+                run_weekdays=[1, 2, 3, 4, 5, 6],
+            )
+
+    off = JobScheduleService(repo=Disabled())  # type: ignore[arg-type]
+    assert not off.is_due("fetch_tmselite_spreadsheet", now=datetime(2026, 7, 28, 8, 0, tzinfo=tz))
+    assert not off.is_due("report_client_daily", now=datetime(2026, 7, 28, 8, 0, tzinfo=tz))
+    assert not off.is_due("report_managerial", now=datetime(2026, 7, 28, 8, 0, tzinfo=tz))
+
+
+def test_update_rejects_empty_run_weekdays():
+    class FakeRepo:
+        def get_by_job_id(self, job_id: str):
+            return JobSchedule(
+                id=1,
+                job_id=job_id,
+                local_time="08:00",
+                timezone="America/Sao_Paulo",
+                enabled=False,
+                frequency="daily",
+                run_weekdays=[1, 2, 3, 4, 5, 6],
+            )
+
+        def update(self, *args, **kwargs):
+            raise AssertionError("não deve gravar")
+
+    svc = JobScheduleService(repo=FakeRepo())  # type: ignore[arg-type]
+    try:
+        svc.update("report_branch_daily", run_weekdays=[], actor="admin")
+        assert False, "expected error"
+    except JobScheduleError as exc:
+        assert "dia" in str(exc).lower()
+
+
+def test_list_hides_api_import_jobs():
+    from app.services.job_schedule_service import HIDDEN_API_AUTOMATIONS
+
+    class FakeRepo:
+        def list_all(self):
+            ids = [
+                "fetch_tmselite_spreadsheet",
+                "report_branch_daily",
+                "report_client_daily",
+                "report_managerial",
+                "import_deliveries_daily",
+                "import_deliveries_initial",
+                "import_deliveries",
+            ]
+            return [
+                JobSchedule(
+                    id=i,
+                    job_id=jid,
+                    local_time="08:00",
+                    timezone="America/Sao_Paulo",
+                    enabled=False,
+                )
+                for i, jid in enumerate(ids, start=1)
+            ]
+
+    listed = JobScheduleService(repo=FakeRepo()).list()  # type: ignore[arg-type]
+    ids = {s.job_id for s in listed}
+    assert ids == {
+        "fetch_tmselite_spreadsheet",
+        "report_branch_daily",
+        "report_client_daily",
+        "report_managerial",
+    }
+    assert ids.isdisjoint(HIDDEN_API_AUTOMATIONS)
+
+
+def test_visible_robots_if_due_skip_sunday_disabled_and_before_time():
+    from app.services.job_schedule_service import VISIBLE_AUTOMATIONS
+
+    tz = ZoneInfo("America/Sao_Paulo")
+    sunday = datetime(2026, 8, 16, 9, 0, tzinfo=tz)
+    tuesday_early = datetime(2026, 7, 28, 4, 59, tzinfo=tz)
+    tuesday_ok = datetime(2026, 7, 28, 8, 0, tzinfo=tz)
+
+    class Repo:
+        def __init__(self, *, enabled=True, days=None, time="05:00"):
+            self.enabled = enabled
+            self.days = days if days is not None else [1, 2, 3, 4, 5, 6]
+            self.time = time
+
+        def get_by_job_id(self, job_id: str):
+            return JobSchedule(
+                id=1,
+                job_id=job_id,
+                local_time=self.time,
+                timezone="America/Sao_Paulo",
+                enabled=self.enabled,
+                frequency="daily",
+                run_weekdays=self.days,
+            )
+
+    for job_id in VISIBLE_AUTOMATIONS:
+        assert not JobScheduleService(repo=Repo()).is_due(job_id, now=sunday)  # type: ignore[arg-type]
+        assert not JobScheduleService(repo=Repo(enabled=False)).is_due(job_id, now=tuesday_ok)  # type: ignore[arg-type]
+        assert not JobScheduleService(repo=Repo(time="05:00")).is_due(job_id, now=tuesday_early)  # type: ignore[arg-type]
+        assert JobScheduleService(repo=Repo(time="05:00")).is_due(job_id, now=tuesday_ok)  # type: ignore[arg-type]
+
+
+def test_report_phases_skip_when_if_due_not_met(monkeypatch):
+    from datetime import date
+
+    from worker.jobs import report_overdue_daily_impl as impl
+    from worker.runtime import JobContext
+
+    class FakeSched:
+        def is_due(self, job_id, *, now=None):
+            return False
+
+    monkeypatch.setattr(impl, "JobScheduleService", FakeSched)
+    ctx = JobContext(
+        job_id="report_overdue_daily",
+        business_date=date(2026, 8, 16),
+        if_due=True,
+        dry_run=True,
+    )
+    assert impl._phase_due("report_branch_daily", ctx) is False
+    assert impl._phase_due("report_client_daily", ctx) is False
+    assert impl._phase_due("report_managerial", ctx) is False
+    branch = impl._run_phase_branch(ctx, pd.DataFrame(), pd.DataFrame())
+    client = impl._run_phase_client(ctx, pd.DataFrame(), pd.DataFrame())
+    managerial = impl._run_phase_managerial(ctx, pd.DataFrame(), pd.DataFrame())
+    assert branch.get("skipped_schedule") is True
+    assert client.get("skipped_schedule") is True
+    assert managerial.get("skipped_schedule") is True
+    assert branch.get("sent", 0) == 0
 
 
 def test_validate_report_emails():

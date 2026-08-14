@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 from typing import Optional
 
 from app.repositories.job_run_repository import JobRunRepository
 from worker.runtime import JobContext, JobResult
+
+logger = logging.getLogger("worker")
 
 
 def begin_run(ctx: JobContext, repo: Optional[JobRunRepository] = None) -> tuple[Optional[int], Optional[JobResult]]:
@@ -33,11 +36,29 @@ def complete_run(
     if run_id is None:
         return result
     repo = repo or JobRunRepository()
-    repo.finish(
+    row = repo.finish(
         run_id,
         status=result.status,
         message=result.message,
         metrics=result.metrics,
         artifact_path=str(result.artifact_path) if result.artifact_path else None,
     )
+    try:
+        from app.services.tech_monitor_service import notify_visible_robot_run
+
+        if row:
+            notify_visible_robot_run(
+                job_id=str(row["job_id"]),
+                status=result.status,
+                business_date=row["business_date"],
+                started_on=row.get("started_on"),
+                finished_on=row.get("finished_on"),
+                duration_ms=row.get("duration_ms"),
+                metrics=result.metrics,
+                message=result.message,
+                error_step=row.get("error_step"),
+                run_id=row.get("id"),
+            )
+    except Exception:
+        logger.exception("monitoramento técnico falhou após job run_id=%s", run_id)
     return result

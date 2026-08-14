@@ -119,13 +119,6 @@ export function Shell() {
                 Destinatários de E-mail
               </NavLink>
               <NavLink
-                to="/settings/api-integration"
-                className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
-                onClick={() => setDrawerOpen(false)}
-              >
-                Integração API
-              </NavLink>
-              <NavLink
                 to="/settings/schedules"
                 className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
                 onClick={() => setDrawerOpen(false)}

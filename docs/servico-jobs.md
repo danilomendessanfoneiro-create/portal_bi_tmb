@@ -14,19 +14,47 @@ python -m worker run report_overdue_daily --if-due
 Flags:
 - `--dry-run` — gera CSV de auditoria e simula fases **sem** enviar e-mail (não grava success de idempotência)
 - `--force` — ignora idempotência do dia (por automação)
-- `--if-due` — avalia cada automação independentemente (horário + frequência)
+- `--if-due` — avalia cada automação: **ativo + dias da semana (`run_weekdays`) + horário** no timezone do job
 - `--date YYYY-MM-DD` — data de negócio (default: hoje America/Sao_Paulo)
 
 Artefato local (auditoria, **não** anexado ao e-mail): `storage/reports/YYYY-MM-DD/atrasos_consolidado.csv`
 
-## Job único + duas automações
+## Automações visíveis (Admin)
 
-O CLI `report_overdue_daily` orquestra duas fases:
+Tela **Configurações → Automações**. O menu **Integração API** e os jobs de API **não aparecem** (código e tabelas permanecem).
+
+| job_id | Nome na tela | Horário padrão | Dias padrão | Ativo padrão |
+|---|---|---|---|---|
+| `fetch_tmselite_spreadsheet` | Coleta da planilha TMS Elite | 05:00 | seg–sáb | Não |
+| `report_branch_daily` | Envio Diário de Relatórios das Filiais | 08:00 | seg–sáb | Não |
+| `report_client_daily` | Envio Diário de Relatórios dos Clientes | 08:00 | seg–sáb | Não |
+| `report_managerial` | Relatório Gerencial | 08:00 | seg–sáb | Não |
+
+`run_weekdays`: 0=Domingo … 6=Sábado. Domingo desmarcado por padrão.
+
+**Regra dos robôs:** só executam via `--if-due` se `enabled` **e** o dia está em `run_weekdays` **e** o relógio local já passou de `local_time`.
+
+Jobs ocultos (desativados): `import_deliveries_daily`, `import_deliveries_initial`.
+
+## Monitoramento técnico
+
+Cada execução **success/failed** dos quatro robôs visíveis grava `prb_job_runs` (`duration_ms`, `error_step`, `metrics_json`) e envia um e-mail técnico (SMTP **só por env**, não o SMTP da tela). `skipped` não envia.
+
+Variáveis (`.env` / systemd): `TECH_SMTP_HOST`, `TECH_SMTP_PORT`, `TECH_SMTP_USER`, `TECH_SMTP_PASSWORD`, `TECH_SMTP_FROM`, `TECH_SMTP_FROM_NAME`, `TECH_SMTP_TO`. Sem senha, o job de negócio segue e o e-mail é ignorado (log).
+
+Assunto (sucesso): `Portal BI – Relatório de Execução das Automações – DD/MM/YYYY`.
+Assunto (falha): `Portal BI – FALHA – Relatório de Execução das Automações – DD/MM/YYYY`.
+Corpo: robô, identificador, run id, resultado, horários, duração e métricas (lote/arquivo/e-mails etc.). Em falha, bloco **MOTIVO DA FALHA** com etapa, motivo e detalhes.
+
+## Job único + fases de relatório
+
+O CLI `report_overdue_daily` orquestra três fases:
 
 | Automação (`job_id` interno) | Destinatários | Conteúdo | Frequência |
 |---|---|---|---|
-| `report_branch_daily` | E-mails no cadastro do usuário **filial** (`report_emails`, separados por `;`) | Só dados da filial | Diário |
-| `report_managerial` | Destinatários administrativos (`prb_email_recipients`) | Consolidado | Diário / semanal / mensal (UI) |
+| `report_branch_daily` | E-mails no cadastro do usuário **filial** (`report_emails`, separados por `;`) | Só dados da filial | Dias + horário no Admin |
+| `report_client_daily` | E-mails do cadastro **Clientes** | Por CNPJ | Dias + horário no Admin |
+| `report_managerial` | Destinatários administrativos (`prb_email_recipients`) | Consolidado | Dias + horário no Admin |
 
 - E-mail em **HTML no corpo**, sem anexo.
 - Assunto filial: `Relatório de Entregas - [Filial]`
@@ -44,19 +72,29 @@ Jobs auxiliares:
 | `import_deliveries_initial` | Carga inicial API (initial_load_days) |
 | `import_deliveries_daily` | Sync diário por dataCadastro |
 | `report_overdue_daily` | Executor das duas fases de e-mail |
+| `fetch_tmselite_spreadsheet` | Coleta Playwright da planilha TMS (Total → Ver Entregas → Excel) e importa via `ManualImportService` |
+
+```bash
+python -m worker run fetch_tmselite_spreadsheet --dry-run
+python -m worker run fetch_tmselite_spreadsheet --force
+```
+
+Pré-requisitos: migrations `041`/`042`, Chromium (`playwright install chromium`), credenciais em Automações → Coleta da planilha TMS Elite (ativo + dia/horário). `--dry-run` baixa o arquivo e **não** importa.
+
 
 ## Pré-requisitos para envio real
 
 1. SMTP padrão ativo em Configurações → SMTP
 2. Usuários filial com `report_emails` (Fase A)
 3. Destinatários com “relatório diário” ativos (Fase B)
-4. Migrations aplicadas até `019`
-5. Configuração padrão em **Integração API** + dados em `prb_deliveries`
+5. Migrations aplicadas (inclui `041` dias da semana e `042` duração/etapa do run)
+6. SMTP técnico (`TECH_SMTP_*`) se quiser o e-mail de monitoramento; SMTP da tela continua só para relatórios de atraso
 
 ## Admin
 
 - Usuários → perfil filial → campo **E-mails do relatório**
-- Configurações → **Automações** (nomes amigáveis; sem expor IDs técnicos)
+- Configurações → **Automações** (nome amigável, horário, dias da semana, ativo; banner de sucesso/erro ao salvar). Coleta TMS: URL, usuário e senha cifrada. Jobs da API e Integração API ocultos.
+- Deploy desta release: [release-automacoes-monitoramento.md](release-automacoes-monitoramento.md)
 
 ## VPS (systemd)
 
@@ -73,9 +111,9 @@ sudo systemctl list-timers | grep portal-job
 | Timer | Job |
 |-------|-----|
 | `portal-job-report.timer` | `report_overdue_daily --if-due` (também grava snapshot histórico antes do e-mail) |
-| `portal-job-import.timer` | `import_deliveries_daily --if-due` |
+| `portal-job-import.timer` | `fetch_tmselite_spreadsheet --if-due` e em seguida `import_deliveries_daily --if-due` |
 
-Os timers disparam a cada 15 minutos; o worker com `--if-due` respeita o horário de cada automação no Admin. Carga inicial: `import_deliveries_initial --force` (manual, one-shot).
+Os timers disparam a cada 15 minutos; `--if-due` respeita ativo + dias + horário. Jobs da API no `portal-job-import` não disparam enquanto `enabled=false`. Carga inicial API: `import_deliveries_initial --force` (manual, one-shot; job oculto).
 
 O disparo manual de e-mails **não** é automático após import de planilha. No Admin → Importação de Dados, o botão **Disparar Envio de E-mails** chama em background:
 

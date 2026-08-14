@@ -1,0 +1,83 @@
+{
+  "project": "Portal BI TMB",
+  "branchName": "atlas/drilldown-dashboard-historico",
+  "description": "Drill-down no Dashboard Histórico: clique no dia (com fallback) abre espelho com KPIs, breakdown e registros só dos atrasados da foto daquele business_date.",
+  "targetRepo": null,
+  "sourcePrd": "tasks/prd-drilldown-dashboard-historico.md",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Consulta de fatos do snapshot por dia",
+      "description": "As a developer, I want list_overdue_for_day (repository + service) so that the UI can load the overdue rows of a single business_date with the same filters and access scope as the historical series.",
+      "acceptanceCriteria": [
+        "BiSnapshotRepository lista linhas de prb_bi_snapshot_overdue para um business_date (enabled), com filtros opcionais filial / cliente / cidade / busca (NF ou cliente)",
+        "BiSnapshotService.list_overdue_for_day(...) retorna DataFrame (ou lista tipada) pronto para o Streamlit",
+        "Admin pode filtrar qualquer filial; perfil filial é sempre restrito a viewer.branch (nunca vazamento)",
+        "Não lê prb_deliveries",
+        "Unit tests: filtros, dia sem dados → vazio, escopo filial",
+        "Tests pass"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "list_overdue_for_day no repo/service; tests/test_bi_snapshot.py"
+    },
+    {
+      "id": "US-002",
+      "title": "Seleção do dia no gráfico Histórico",
+      "description": "As a usuário do BI, I want to click a day on the historical bar chart (or pick it from a fallback selector) so that the system knows which snapshot day to mirror.",
+      "acceptanceCriteria": [
+        "st.plotly_chart do Histórico captura seleção de barra e grava business_date em st.session_state",
+        "Fallback: selectbox (ou equivalente) listando os dias presentes na série agregada filtrada — Dia para detalhar",
+        "Botão/ação Limpar detalhe do dia remove a seleção e volta ao modo só série",
+        "Dia inválido / fora da série / sem snapshot → mensagem clara, sem crash",
+        "Verify in browser"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "history_controller: on_select + selectbox + limpar; browser MCP indisponível — verificado por import/código"
+    },
+    {
+      "id": "US-003",
+      "title": "Painel Detalhe do Dia — KPIs e breakdown",
+      "description": "As a usuário do BI, I want KPIs and a dimensional breakdown for the selected day so that I can compare volume, value and concentration (filial or cliente) at a glance.",
+      "acceptanceCriteria": [
+        "Com dia selecionado, exibe seção Detalhe do dia DD/MM/AAAA",
+        "KPIs: quantidade em atraso; valor total em atraso; média de dias em atraso",
+        "Breakdown em barras: filial se admin; cliente se perfil filial (respeitando escopo)",
+        "Dados vêm só do snapshot do dia + filtros do painel Histórico já aplicados",
+        "Verify in browser"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "_render_detalhe_do_dia com KPIs + barras; browser MCP indisponível"
+    },
+    {
+      "id": "US-004",
+      "title": "Drill dimensional e tabela de registros",
+      "description": "As an admin (or filial user), I want to click the breakdown chart and see the filtered table of deliveries for that day so that I can investigate individual NFs like on the Operacional dashboard.",
+      "acceptanceCriteria": [
+        "Clique no gráfico de breakdown grava drill (filial ou cliente) em session_state e filtra KPIs auxiliares / tabela",
+        "Tabela lista registros do snapshot do dia incluindo status_prazo, ordenada por dias_atraso desc (como Operacional)",
+        "Ação para limpar o drill dimensional sem sair do dia",
+        "Empty state quando o dia/filtros não retornam linhas",
+        "Verify in browser"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "Drill HIST_DRILL_KEY + tabela com status_prazo; browser MCP indisponível"
+    },
+    {
+      "id": "US-005",
+      "title": "Documentação",
+      "description": "As a developer, I want a short doc update so that the team knows how the day mirror works and its limits vs Operacional.",
+      "acceptanceCriteria": [
+        "Atualizar doc do Histórico / contrato descrevendo: clique → Detalhe do dia; só atrasados da foto; não reconstrói vence hoje/em dia",
+        "Referenciar este PRD e o plano .atlas/plans/2026-07-31-drilldown-dashboard-historico.md",
+        "Documentation complete"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "docs/servico-jobs.md + docs/contrato-servico-portal-bi.md"
+    }
+  ]
+}

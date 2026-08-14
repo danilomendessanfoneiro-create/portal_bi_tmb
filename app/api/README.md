@@ -18,6 +18,6 @@ uvicorn app.api.main:app --reload --host 127.0.0.1 --port 8001
 | Usuários | `GET\|POST /api/users`, `GET\|PUT\|DELETE /api/users/{id}` — inclui `report_emails` |
 | SMTP | `/api/settings/smtp` |
 | Destinatários | `/api/settings/recipients` |
-| Automações | `/api/settings/schedules` — `display_name`, `frequency`, `weekday`, `day_of_month` |
+| Automações | `/api/settings/schedules` — `display_name`, `local_time`, `enabled`, `run_weekdays` (0=Dom…6=Sáb); TMS: url/usuário/senha |
 
 Reutiliza `AuthService` / `UserService` / services de settings (sem SQL nos routers).

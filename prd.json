@@ -1,83 +1,138 @@
 {
   "project": "Portal BI TMB",
-  "branchName": "atlas/drilldown-dashboard-historico",
-  "description": "Drill-down no Dashboard Histórico: clique no dia (com fallback) abre espelho com KPIs, breakdown e registros só dos atrasados da foto daquele business_date.",
+  "branchName": "atlas/reestruturacao-automacoes-monitoramento",
+  "description": "Reestruturar Automações: dias da semana, jobs da API e Integração API ocultos, defaults desativados, robôs visíveis só com ativo+dia+horário, e-mail técnico após cada execução via SMTP de ambiente.",
   "targetRepo": null,
-  "sourcePrd": "tasks/prd-drilldown-dashboard-historico.md",
+  "sourcePrd": "tasks/prd-reestruturacao-automacoes-monitoramento.md",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Consulta de fatos do snapshot por dia",
-      "description": "As a developer, I want list_overdue_for_day (repository + service) so that the UI can load the overdue rows of a single business_date with the same filters and access scope as the historical series.",
+      "title": "Migration de dias da semana e defaults",
+      "description": "As a developer, I need run_weekdays on prb_job_settings and seeded defaults so schedules persist Mon–Sat, new times, and disabled jobs.",
       "acceptanceCriteria": [
-        "BiSnapshotRepository lista linhas de prb_bi_snapshot_overdue para um business_date (enabled), com filtros opcionais filial / cliente / cidade / busca (NF ou cliente)",
-        "BiSnapshotService.list_overdue_for_day(...) retorna DataFrame (ou lista tipada) pronto para o Streamlit",
-        "Admin pode filtrar qualquer filial; perfil filial é sempre restrito a viewer.branch (nunca vazamento)",
-        "Não lê prb_deliveries",
-        "Unit tests: filtros, dia sem dados → vazio, escopo filial",
+        "Migration 041 adiciona run_weekdays em prb_job_settings (smallint[] 0=Domingo … 6=Sábado)",
+        "Default {1,2,3,4,5,6}; audit prb_job_settings_audit inclui run_weekdays",
+        "Jobs visíveis: TMS 05:00 enabled=false; filiais/clientes/gerencial 08:00 enabled=false; mesmos dias",
+        "import_deliveries_daily e import_deliveries_initial permanecem enabled=false; frequency/weekday/day_of_month não são dropados",
         "Tests pass"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "list_overdue_for_day no repo/service; tests/test_bi_snapshot.py"
+      "notes": "041_add_job_run_weekdays.sql aplicada; TMS 05:00 e relatórios 08:00 desativados; API jobs enabled=false"
     },
     {
       "id": "US-002",
-      "title": "Seleção do dia no gráfico Histórico",
-      "description": "As a usuário do BI, I want to click a day on the historical bar chart (or pick it from a fallback selector) so that the system knows which snapshot day to mirror.",
+      "title": "Scheduler e API respeitam dias + ativo + horário",
+      "description": "As a system, I want is_due and the schedules API to honor weekdays so no visible robot runs on the wrong day or while disabled.",
       "acceptanceCriteria": [
-        "st.plotly_chart do Histórico captura seleção de barra e grava business_date em st.session_state",
-        "Fallback: selectbox (ou equivalente) listando os dias presentes na série agregada filtrada — Dia para detalhar",
-        "Botão/ação Limpar detalhe do dia remove a seleção e volta ao modo só série",
-        "Dia inválido / fora da série / sem snapshot → mensagem clara, sem crash",
-        "Verify in browser"
+        "is_due false se enabled=false, se dia não está em run_weekdays, ou se agora < local_time",
+        "PUT /api/settings/schedules/{job_id} aceita run_weekdays number[] (0–6); rejeita vazio",
+        "GET devolve run_weekdays; os quatro robôs visíveis usam o mesmo is_due",
+        "Tests pass"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "history_controller: on_select + selectbox + limpar; browser MCP indisponível — verificado por import/código"
+      "notes": "is_due checa enabled + run_weekdays + horário; PUT rejeita array vazio; GET devolve run_weekdays"
     },
     {
       "id": "US-003",
-      "title": "Painel Detalhe do Dia — KPIs e breakdown",
-      "description": "As a usuário do BI, I want KPIs and a dimensional breakdown for the selected day so that I can compare volume, value and concentration (filial or cliente) at a glance.",
+      "title": "Robôs visíveis só rodam nos novos critérios",
+      "description": "As an operator, I want TMS fetch and the three report phases to skip when inactive, on Sunday (default), or before the configured hour so robots obey the new rules.",
       "acceptanceCriteria": [
-        "Com dia selecionado, exibe seção Detalhe do dia DD/MM/AAAA",
-        "KPIs: quantidade em atraso; valor total em atraso; média de dias em atraso",
-        "Breakdown em barras: filial se admin; cliente se perfil filial (respeitando escopo)",
-        "Dados vêm só do snapshot do dia + filtros do painel Histórico já aplicados",
-        "Verify in browser"
+        "fetch_tmselite_spreadsheet --if-due respeita enabled, run_weekdays e horário",
+        "report_overdue_daily --if-due avalia cada fase com is_due; fora dos critérios → skipped",
+        "Domingo com defaults: nenhum robô visível dispara via --if-due",
+        "Testes: dia habilitado após horário; dia não habilitado; job desativado; horário ainda não chegou",
+        "Tests pass"
       ],
       "priority": 3,
       "passes": true,
-      "notes": "_render_detalhe_do_dia com KPIs + barras; browser MCP indisponível"
+      "notes": "fetch e fases de relatório skipped via --if-due; domingo/desativado/antes do horário cobertos"
     },
     {
       "id": "US-004",
-      "title": "Drill dimensional e tabela de registros",
-      "description": "As an admin (or filial user), I want to click the breakdown chart and see the filtered table of deliveries for that day so that I can investigate individual NFs like on the Operacional dashboard.",
+      "title": "Ocultar automações da API na tela",
+      "description": "As an admin client, I should not see API delivery jobs on Automações so the UI only shows TMS + reports.",
       "acceptanceCriteria": [
-        "Clique no gráfico de breakdown grava drill (filial ou cliente) em session_state e filtra KPIs auxiliares / tabela",
-        "Tabela lista registros do snapshot do dia incluindo status_prazo, ordenada por dias_atraso desc (como Operacional)",
-        "Ação para limpar o drill dimensional sem sair do dia",
-        "Empty state quando o dia/filtros não retornam linhas",
+        "GET /api/settings/schedules não retorna import_deliveries_daily, import_deliveries_initial nem import_deliveries",
+        "Tela mostra só TMS Elite, Filiais, Clientes e Gerencial",
+        "Código/jobs da API preservados e enabled=false",
+        "Typecheck passes",
         "Verify in browser"
       ],
       "priority": 4,
       "passes": true,
-      "notes": "Drill HIST_DRILL_KEY + tabela com status_prazo; browser MCP indisponível"
+      "notes": "JobScheduleService.list filtra import_deliveries*; MCP browser indisponível — UI só renderiza o GET"
     },
     {
       "id": "US-005",
-      "title": "Documentação",
-      "description": "As a developer, I want a short doc update so that the team knows how the day mirror works and its limits vs Operacional.",
+      "title": "Ocultar menu Integração API",
+      "description": "As an admin client, I should not see Configurações → Integração API in the navigation so API setup is not exposed.",
       "acceptanceCriteria": [
-        "Atualizar doc do Histórico / contrato descrevendo: clique → Detalhe do dia; só atrasados da foto; não reconstrói vence hoje/em dia",
-        "Referenciar este PRD e o plano .atlas/plans/2026-07-31-drilldown-dashboard-historico.md",
-        "Documentation complete"
+        "Remover link Integração API de Shell.tsx e SettingsPage.tsx",
+        "Rota ApiIntegrationPage e backend permanecem",
+        "Typecheck passes",
+        "Verify in browser"
       ],
       "priority": 5,
       "passes": true,
-      "notes": "docs/servico-jobs.md + docs/contrato-servico-portal-bi.md"
+      "notes": "Nav Integração API removido de Shell e SettingsPage; rota ApiIntegrationPage permanece. Browser MCP indisponível."
+    },
+    {
+      "id": "US-006",
+      "title": "CRUD Automações com dias da semana",
+      "description": "As an admin, I want checkboxes for the seven weekdays on each visible automation card so I can choose when robots run.",
+      "acceptanceCriteria": [
+        "Seção Dias de execução com sete checkboxes; padrão seg–sáb, domingo desmarcado",
+        "Salvar via PUT; job_id técnico oculto; TMS mantém URL/usuário/senha",
+        "Typecheck passes",
+        "Verify in browser"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "Checkboxes Dias de execução no SchedulePage; PUT run_weekdays. Browser MCP indisponível."
+    },
+    {
+      "id": "US-007",
+      "title": "Completar registro de execução nos job runs",
+      "description": "As a developer, I want each robot run stored with timing, status, counts and error step so monitoring emails and a future history screen have data.",
+      "acceptanceCriteria": [
+        "Reutilizar prb_job_runs; estender metrics/colunas se faltar etapa ou duration_ms",
+        "success/failed no e-mail como SUCESSO/FALHA; skipped não gera e-mail técnico",
+        "Métricas quando aplicável: processados, inseridos, atualizados, e-mails ok/erro, etapa da falha",
+        "Tests pass"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "042 duration_ms + error_step em prb_job_runs; skipped não notifica"
+    },
+    {
+      "id": "US-008",
+      "title": "SMTP técnico e e-mail após cada robô",
+      "description": "As a technical operator, I want a monitoring email after each visible robot run (success or failure) using env SMTP, not the client SMTP.",
+      "acceptanceCriteria": [
+        "SMTP técnico só via env (gmail 587); senha/destinatário nunca na UI nem no código",
+        "E-mail após cada execução real dos 4 robôs visíveis; skipped não envia",
+        "Assunto Portal BI – Relatório de Execução das Automações – DD/MM/YYYY; corpo com RESUMO + DETALHAMENTO do robô",
+        "Falha SMTP técnico não desfaz o job; envio mockado nos testes",
+        "Tests pass"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "tech_monitor_service via TECH_SMTP_*; e-mail após complete_run success/failed dos 4 jobs visíveis"
+    },
+    {
+      "id": "US-009",
+      "title": "Documentação das automações",
+      "description": "As an operator, I want docs updated so VPS and local setup match weekday scheduling, hidden API jobs, and technical SMTP.",
+      "acceptanceCriteria": [
+        "Atualizar docs/servico-jobs.md e trechos de deploy-vps se necessário",
+        ".env.example com chaves técnicas e senha vazia",
+        "Documentation complete"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": "docs/servico-jobs.md, deploy-vps.md e .env.example atualizados"
     }
   ]
 }

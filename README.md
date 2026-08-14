@@ -44,10 +44,11 @@ Documentação detalhada:
 - **Usuários** — login, perfil, filial, ativo/inativo; para perfil filial, campo **E-mails do relatório** (múltiplos separados por `;`, validados).
 - **Configurações → SMTP** — host, credenciais, remetente, SMTP padrão.
 - **Configurações → Destinatários** — e-mails gerenciais (flags diário / semanal / mensal).
-- **Configurações → Automações** — horários amigáveis (sem IDs técnicos):
-  - Envio diário das filiais
-  - Relatório gerencial (diário / semanal / mensal — parametrização; geração semanal/mensal futura)
-
+- **Configurações → Automações** — 4 robôs visíveis (sem IDs técnicos / sem API):
+  - Coleta da planilha TMS Elite (05:00 seed; dias da semana; credenciais)
+  - Envio diário das filiais / clientes / gerencial (08:00 seed)
+  - Regra: **ativo + dias da semana + horário**; feedback de sucesso/erro ao salvar
+- Menu **Integração API** oculto (código/backend permanecem)
 ### BI (Streamlit `/bi`)
 
 - Dashboard **Operacional** a partir do **lote ativo** em `prb_deliveries` (`limpeza.processar_entregas`).
@@ -59,28 +60,28 @@ Documentação detalhada:
 
 ### Relatórios por e-mail (worker)
 
-Job único `report_overdue_daily` com duas fases (fonte: **lote ativo** em `prb_deliveries`):
+Job `report_overdue_daily` com três fases (fonte: **lote ativo** em `prb_deliveries`):
 
-1. **Filiais** — um HTML por e-mail cadastrado no usuário filial; só dados daquela filial.
-2. **Gerencial** — HTML consolidado aos destinatários administrativos (assunto/saudação com o **nome do destinatário**).
+1. **Filiais** — HTML por e-mail do usuário filial.
+2. **Clientes** — HTML por CNPJ cadastrado em Clientes.
+3. **Gerencial** — consolidado aos destinatários administrativos.
 
 Características:
 
-- Corpo **HTML** (compatível Outlook/Gmail), **sem anexo**.
-- Seções: notas em atraso e notas que vencem hoje.
-- Colunas: Nota Fiscal, Cliente, Cidade, Dt. Agendamento, Ult. Motorista, Dias em atraso (vazios → string vazia, sem `NaT`/`nan`).
-- Filial sem e-mail: aviso no log e segue.
-- CSV local em `storage/reports/` apenas para auditoria.
-- Idempotência por automação + data (`prb_job_runs`).
-- Disparo manual no Admin (botão) — **não** automático após import de planilha.
+- Corpo **HTML**, **sem anexo**; CSV só em `storage/reports/` (auditoria).
+- Idempotência por automação + data (`prb_job_runs` com `duration_ms` / `error_step`).
+- Disparo manual no Admin — **não** automático após import.
+- Monitoramento técnico separado (`TECH_SMTP_*` no `.env`): e-mail após success/failed dos robôs visíveis, com métricas e motivo da falha.
+
+Coleta diária da planilha: `fetch_tmselite_spreadsheet` (Playwright). Detalhes: [docs/servico-jobs.md](docs/servico-jobs.md).
 
 ### Persistência (PostgreSQL)
 
-Migrations incrementais em `database/migrations/` (até `030`), padrão `prb_*` + `_audit`:
+Migrations incrementais em `database/migrations/` (até `042`), padrão `prb_*` + `_audit`:
 
-- Usuários, SMTP, destinatários, execuções de job, automações (`display_name`, `frequency`, `weekday`, `day_of_month`)
-- Integração API (`prb_api_settings`), entregas (`prb_deliveries` + `cliente_conta`, `dt_recebimento`, dataset do lote)
-- Snapshots BI (`prb_bi_snapshot_*`), importação manual (`prb_import_*`), ponteiro `prb_active_dataset`
+- Usuários, SMTP, destinatários, execuções de job (`duration_ms`, `error_step`)
+- Automações (`display_name`, `run_weekdays`, horário, credenciais TMS cifradas)
+- Integração API (`prb_api_settings`), entregas, snapshots BI, importação manual, lote ativo
 
 ## Desenvolvimento local
 
@@ -113,16 +114,19 @@ npm run dev
 Abrir: **http://localhost:5173/admin/**  
 Login seed (se não alterado): `admin` / `admin123`
 
-### Worker de relatório / importação
+### Worker de relatório / coleta / importação
 
 ```bash
 .\.venv\Scripts\python.exe -m worker list
-.\.venv\Scripts\python.exe -m worker run import_deliveries_initial --dry-run
-.\.venv\Scripts\python.exe -m worker run import_deliveries_daily --force
+.\.venv\Scripts\python.exe -m worker run fetch_tmselite_spreadsheet --dry-run
+.\.venv\Scripts\python.exe -m worker run fetch_tmselite_spreadsheet --force
+.\.venv\Scripts\python.exe -m worker run report_overdue_daily --if-due
 .\.venv\Scripts\python.exe -m worker run report_overdue_daily --dry-run
 ```
 
-Configurar antes: Admin → Integração API (URL + Bearer). Detalhes: [docs/integracao-api-tmselite.md](docs/integracao-api-tmselite.md).
+SMTP técnico: `TECH_SMTP_*` no `.env` ([`.env.example`](.env.example)).  
+Deploy VPS desta release: [docs/release-automacoes-monitoramento.md](docs/release-automacoes-monitoramento.md).  
+Jobs: [docs/servico-jobs.md](docs/servico-jobs.md). API legado: [docs/integracao-api-tmselite.md](docs/integracao-api-tmselite.md).
 
 ### Testes
 
@@ -135,10 +139,10 @@ Configurar antes: Admin → Integração API (URL + Bearer). Detalhes: [docs/int
 ```
 app/           # domínios, services, repositories, API FastAPI, controllers Streamlit
 frontend/      # admin React (Vite)
-worker/        # CLI de jobs (relatório diário)
-database/      # migrations e runner
-deploy/        # nginx + systemd
-docs/          # documentação operacional
+worker/        # CLI de jobs (coleta TMS, relatório, import API)
+database/      # migrations e runner (até 042)
+deploy/        # nginx + systemd + update.sh
+docs/          # documentação operacional + release notes
 tasks/         # PRDs
 dados/         # planilha de entregas (fonte atual do BI/jobs)
 ```

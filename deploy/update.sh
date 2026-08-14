@@ -79,6 +79,8 @@ fi
 if [[ "$DO_PIP" -eq 1 ]]; then
   log "pip install -r requirements.txt"
   pip install -r requirements.txt
+  log "Playwright Chromium (coleta TMS)"
+  python -m playwright install chromium
 fi
 
 if [[ "$DO_MIGRATE" -eq 1 ]]; then
@@ -134,7 +136,11 @@ else
 fi
 
 log "Deploy concluído."
-echo "Pós-deploy: smoke /admin /api/health /bi; upload planilha (Progressão)."
+echo "Pós-deploy:"
+echo "  - smoke /admin /api/health /bi"
+echo "  - confirmar migrations 040–042 e TECH_SMTP_* no .env"
+echo "  - Automações: 4 cards + dias; coleta TMS + timers"
+echo "  - ver docs/release-automacoes-monitoramento.md"
 if [[ "$DO_SEED_CLIENTS" -eq 0 ]]; then
   echo "Clientes: rode com --seed-clients se prb_clients estiver vazio."
 fi

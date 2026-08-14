@@ -8,6 +8,7 @@ from typing import Optional
 from zoneinfo import ZoneInfo
 
 from app.repositories.job_schedule_repository import JobSchedule, JobScheduleRepository
+from app.utils.secret_box import decrypt_secret, encrypt_secret
 
 TIME_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 FREQUENCIES = {"daily", "weekly", "monthly"}
@@ -15,10 +16,38 @@ FREQUENCIES = {"daily", "weekly", "monthly"}
 AUTOMATION_BRANCH = "report_branch_daily"
 AUTOMATION_MANAGERIAL = "report_managerial"
 AUTOMATION_CLIENT = "report_client_daily"
+AUTOMATION_TMS_SPREADSHEET = "fetch_tmselite_spreadsheet"
+DEFAULT_TMS_LOGIN_URL = "https://tmblogistica.tmselite.com/login"
+DEFAULT_RUN_WEEKDAYS = [1, 2, 3, 4, 5, 6]
+VISIBLE_AUTOMATIONS = (
+    AUTOMATION_TMS_SPREADSHEET,
+    AUTOMATION_BRANCH,
+    AUTOMATION_CLIENT,
+    AUTOMATION_MANAGERIAL,
+)
+HIDDEN_API_AUTOMATIONS = (
+    "import_deliveries",
+    "import_deliveries_daily",
+    "import_deliveries_initial",
+)
 
 
 class JobScheduleError(Exception):
     pass
+
+
+def prd_weekday(dt: datetime) -> int:
+    """Python Monday=0 … Sunday=6 → 0=Domingo … 6=Sábado."""
+    return (dt.weekday() + 1) % 7
+
+
+def normalize_run_weekdays(days: list[int]) -> list[int]:
+    uniq = sorted({int(d) for d in days})
+    if not uniq:
+        raise JobScheduleError("Selecione pelo menos um dia da semana.")
+    if any(d < 0 or d > 6 for d in uniq):
+        raise JobScheduleError("Dias da semana devem ser 0 (Domingo) a 6 (Sábado).")
+    return uniq
 
 
 class JobScheduleService:
@@ -29,7 +58,8 @@ class JobScheduleService:
         return self._repo.get_by_job_id(job_id)
 
     def list(self) -> list[JobSchedule]:
-        return self._repo.list_all()
+        hidden = set(HIDDEN_API_AUTOMATIONS)
+        return [item for item in self._repo.list_all() if item.job_id not in hidden]
 
     def update(
         self,
@@ -42,6 +72,10 @@ class JobScheduleService:
         frequency: Optional[str] = None,
         weekday: Optional[int] = None,
         day_of_month: Optional[int] = None,
+        tms_login_url: Optional[str] = None,
+        tms_username: Optional[str] = None,
+        tms_password: Optional[str] = None,
+        run_weekdays: Optional[list[int]] = None,
         actor: str,
     ) -> JobSchedule:
         current = self.get(job_id)
@@ -64,6 +98,31 @@ class JobScheduleService:
             raise JobScheduleError("Automação das filiais permite apenas frequência diária.")
         if job_id == AUTOMATION_CLIENT and freq != "daily":
             raise JobScheduleError("Automação dos clientes permite apenas frequência diária.")
+        if job_id == AUTOMATION_TMS_SPREADSHEET and freq != "daily":
+            raise JobScheduleError("Coleta TMS Elite permite apenas frequência diária.")
+
+        url = current.tms_login_url
+        user = current.tms_username
+        password_encrypted = None
+        if job_id == AUTOMATION_TMS_SPREADSHEET:
+            if tms_login_url is not None:
+                url = tms_login_url.strip() or DEFAULT_TMS_LOGIN_URL
+            if tms_username is not None:
+                user = tms_username.strip() or None
+            if tms_password:
+                password_encrypted = encrypt_secret(tms_password)
+            will_enable = current.enabled if enabled is None else bool(enabled)
+            if will_enable:
+                if not url:
+                    raise JobScheduleError("URL de login do TMS é obrigatória.")
+                if not user:
+                    raise JobScheduleError("Usuário do TMS é obrigatório.")
+                has_secret = bool(password_encrypted or current.tms_password_encrypted)
+                if not has_secret:
+                    raise JobScheduleError("Senha do TMS é obrigatória para ativar a coleta.")
+        elif tms_login_url is not None or tms_username is not None or tms_password:
+            raise JobScheduleError("Credenciais TMS só se aplicam à coleta da planilha.")
+
 
         clear_weekday = False
         clear_day = False
@@ -88,6 +147,10 @@ class JobScheduleService:
                 raise JobScheduleError("Dia do mês deve ser entre 1 e 31.")
             dom = int(dom)
 
+        days = None
+        if run_weekdays is not None:
+            days = normalize_run_weekdays(run_weekdays)
+
         updated = self._repo.update(
             job_id,
             local_time=local_time.strip() if local_time else None,
@@ -99,11 +162,21 @@ class JobScheduleService:
             day_of_month=dom,
             clear_weekday=clear_weekday,
             clear_day_of_month=clear_day,
+            tms_login_url=url if job_id == AUTOMATION_TMS_SPREADSHEET and tms_login_url is not None else None,
+            tms_username=user if job_id == AUTOMATION_TMS_SPREADSHEET and tms_username is not None else None,
+            tms_password_encrypted=password_encrypted,
+            run_weekdays=days,
             actor=actor,
         )
         if updated is None:
             raise JobScheduleError("Agendamento não encontrado.")
         return updated
+
+    def get_tms_password(self, job_id: str = AUTOMATION_TMS_SPREADSHEET) -> Optional[str]:
+        sched = self.get(job_id)
+        if sched is None or not sched.tms_password_encrypted:
+            return None
+        return decrypt_secret(sched.tms_password_encrypted)
 
     def is_due(self, job_id: str, *, now: Optional[datetime] = None) -> bool:
         sched = self.get(job_id)
@@ -122,14 +195,15 @@ class JobScheduleService:
         if now_minutes < scheduled_minutes:
             return False
 
+        days = sched.run_weekdays if sched.run_weekdays is not None else DEFAULT_RUN_WEEKDAYS
+        if not days or prd_weekday(current) not in {int(d) for d in days}:
+            return False
+
         freq = (sched.frequency or "daily").lower()
         if freq == "daily":
             return True
         if freq == "weekly":
-            # Python: Monday=0 … Sunday=6 → PRD: Sunday=0 … Saturday=6
-            py_wd = current.weekday()
-            prd_wd = (py_wd + 1) % 7
-            return sched.weekday is not None and int(sched.weekday) == prd_wd
+            return sched.weekday is not None and int(sched.weekday) == prd_weekday(current)
         if freq == "monthly":
             return sched.day_of_month is not None and int(sched.day_of_month) == current.day
         return False

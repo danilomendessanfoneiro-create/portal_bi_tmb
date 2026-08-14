@@ -74,3 +74,20 @@ def test_structure_allows_extra_operational_columns():
         ]
     )
     assert svc.assert_spreadsheet_structure(df) == []
+
+
+def test_start_import_wait_runs_job_inline():
+    svc = ManualImportService()
+    seen: list[dict] = []
+
+    class FakeRepo:
+        def get_batch(self, batch_id):
+            return {"id": batch_id, "status": "validated_ok", "file_path": ""}
+
+        def update_batch(self, batch_id, fields, *, actor):
+            return {"id": batch_id, "status": fields.get("status", "importing")}
+
+    svc._imports = FakeRepo()
+    svc._run_import_job = lambda **kw: seen.append(kw)
+    svc.start_import(33, actor="auto", wait=True)
+    assert seen == [{"batch_id": 33, "actor": "auto"}]

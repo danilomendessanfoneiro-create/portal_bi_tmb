@@ -1,31 +1,33 @@
-# Atlas progress â€” upload-planilha-importacao-manual
-# Source: tasks/prd-upload-planilha-importacao-manual.md
+# Atlas progress ? reestruturacao-automacoes-monitoramento
+# Source: tasks/prd-reestruturacao-automacoes-monitoramento.md
+# Branch de trabalho: atual (sem commits, conforme PRD)
 
-2026-07-30 â€” DONE US-001 Migrations prb_import_batches/items/logs + audit
-2026-07-30 â€” DONE US-002 BranchCatalogService (prb_users filial)
-2026-07-30 â€” DONE US-003 API upload + staging storage/imports
-2026-07-30 â€” DONE US-004 ValidaÃ§Ã£o completa (estrutura + dados)
-2026-07-30 â€” DONE US-005 Admin ImportPage (upload/validar/importar)
-2026-07-30 â€” DONE US-006 Upsert transacional prb_deliveries
-2026-07-30 â€” DONE US-007 Progresso UI (polling)
-2026-07-30 â€” DONE US-008 HistÃ³rico com filtros arquivo/usuÃ¡rio/data/status
-2026-07-30 â€” DONE US-009 Disparo report_overdue_daily --force
-2026-07-30 â€” DONE US-010 docs/importacao-manual-planilha.md
+## [US-001] Migration de dias da semana e defaults ? DONE
+- Migration 041: run_weekdays smallint[] (0=Dom?6=S?b), default {1,2,3,4,5,6}
+- TMS 05:00 / relat?rios 08:00 / vis?veis e API enabled=false
 
-# Atlas progress — drilldown-dashboard-historico
-# Source: tasks/prd-drilldown-dashboard-historico.md
+## [US-002] Scheduler e API respeitam dias + ativo + hor?rio ? DONE
+- is_due: enabled, run_weekdays, local_time; PUT/GET run_weekdays
 
-## [US-001] Consulta de fatos do snapshot por dia — DONE
-- list_overdue_for_day no BiSnapshotRepository/Service; testes em test_bi_snapshot.py
+## [US-003] Rob?s vis?veis s? rodam nos novos crit?rios ? DONE
+- fetch e fases de relat?rio skipped via --if-due
 
-## [US-002] Seleção do dia no gráfico Histórico — DONE
-- plotly on_select + selectbox Dia para detalhar + Limpar detalhe do dia
+## [US-004] Ocultar automa??es da API na tela ? DONE
+- GET /settings/schedules omite import_deliveries*
 
-## [US-003] Painel Detalhe do Dia — KPIs e breakdown — DONE
-- KPIs qtde/valor/média + barras filial (admin) / cliente (filial)
+## [US-005] Ocultar menu Integra??o API ? DONE
+- Link removido de Shell e SettingsPage; rota preservada
 
-## [US-004] Drill dimensional e tabela de registros — DONE
-- Drill por clique; tabela com status_prazo ordenada por dias_atraso desc
+## [US-006] CRUD Automa??es com dias da semana ? DONE
+- Checkboxes Dias de execu??o no SchedulePage
 
-## [US-005] Documentação — DONE
-- docs/servico-jobs.md e docs/contrato-servico-portal-bi.md
+## [US-007] Completar registro de execu??o nos job runs ? DONE
+- Migration 042: duration_ms, error_step
+
+## [US-008] SMTP t?cnico e e-mail ap?s cada rob? ? DONE
+- tech_monitor_service + gancho em complete_run (env TECH_SMTP_*)
+
+## [US-009] Documenta??o das automa??es ? DONE
+- docs/servico-jobs.md, docs/deploy-vps.md, .env.example
+
+COMPLETE 2026-08-14 ? tasks/prd-reestruturacao-automacoes-monitoramento.md
