@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import smtplib
+import ssl
 from email.message import EmailMessage
+from email.utils import formataddr
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -30,7 +32,8 @@ def send_report_email(
         raise MailSendError(f"Anexo não encontrado: {attachment}")
 
     data = attachment.read_bytes() if attachment is not None else None
-    from_header = f"{config.smtp.sender_name} <{config.smtp.sender_email}>"
+    from_header = formataddr((config.smtp.sender_name, config.smtp.sender_email))
+    envelope_from = (config.smtp.username or config.smtp.sender_email).strip()
     timeout = config.smtp.timeout_seconds or 30
 
     def _build(to_addr: str) -> EmailMessage:
@@ -38,6 +41,7 @@ def send_report_email(
         msg["Subject"] = subject
         msg["From"] = from_header
         msg["To"] = to_addr
+        msg["Reply-To"] = config.smtp.sender_email
         if html_body:
             msg.set_content(body or "Veja a versão HTML deste e-mail.")
             msg.add_alternative(html_body, subtype="html")
@@ -52,19 +56,28 @@ def send_report_email(
             )
         return msg
 
-    if config.smtp.use_tls:
+    def _login_and_send(smtp: smtplib.SMTP) -> None:
+        smtp.login(config.smtp.username, config.password)
+        for addr in to_emails:
+            built = _build(addr)
+            smtp.send_message(built, from_addr=envelope_from, to_addrs=[addr])
+
+    # Porta 465 = SSL implícito (SMTP_SSL). STARTTLS (587) usa SMTP + starttls.
+    if int(config.smtp.port) == 465:
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL(
+            config.smtp.host, config.smtp.port, timeout=timeout, context=context
+        ) as smtp:
+            _login_and_send(smtp)
+    elif config.smtp.use_tls:
         with smtplib.SMTP(config.smtp.host, config.smtp.port, timeout=timeout) as smtp:
             smtp.ehlo()
             smtp.starttls()
             smtp.ehlo()
-            smtp.login(config.smtp.username, config.password)
-            for addr in to_emails:
-                smtp.send_message(_build(addr))
+            _login_and_send(smtp)
     else:
         with smtplib.SMTP(config.smtp.host, config.smtp.port, timeout=timeout) as smtp:
-            smtp.login(config.smtp.username, config.password)
-            for addr in to_emails:
-                smtp.send_message(_build(addr))
+            _login_and_send(smtp)
 
 
 def resolve_daily_mail() -> MailRuntimeConfig:

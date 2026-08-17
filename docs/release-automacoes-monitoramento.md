@@ -14,6 +14,8 @@ Jobs/detalhes: [`servico-jobs.md`](servico-jobs.md) · Runbook geral: [`deploy-v
 | Scheduler | `--if-due` exige **ativo + dia ∈ run_weekdays + horário** e só na **janela de 60 min** após `local_time` (depois: e-mail + `--force` manual) |
 | Coleta TMS | Job Playwright `fetch_tmselite_spreadsheet` → import via fluxo manual |
 | Monitoramento | E-mail técnico após success/failed (`TECH_SMTP_*` só no `.env`); corpo com **Ambiente** (`APP_ENV`), métricas e **MOTIVO DA FALHA** |
+| Relatórios | Uma tabela HTML **Notas Fiscais em atraso**; `Dias em atraso = 0` = vence hoje |
+| SMTP operacional | Porta **465** usa SSL implícito; ponte Gmail temporária se o mail TMB não alcançar a VPS (ver `docs/diagnostico-smtp-tmb-vps.md`) |
 | Timers | `portal-job-import` roda TMS `--if-due` e depois API daily `--if-due` (API continua desativada por seed) |
 
 ## Pré-requisitos antes do deploy

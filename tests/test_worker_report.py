@@ -443,4 +443,53 @@ def test_build_report_html_empty_and_subject():
     assert "SPO" in html
     assert "canhotos" in html
     assert "até as 16h00" not in html
+    assert "Notas fiscais que vencem hoje" not in html
+    assert html.count("Nenhuma nota fiscal nesta situação.") == 1
     assert build_report_subject("Maria") == "Relatório de Entregas - Maria"
+
+
+def test_build_report_html_unifies_due_today_as_zero_days():
+    overdue = pd.DataFrame(
+        {
+            "nro_entrega": ["A1"],
+            "nota_fiscal": ["NF-ATRASO"],
+            "cliente": ["C1"],
+            "cidade_entrega": ["SP"],
+            "dt_agendamento": [pd.Timestamp("2026-08-10")],
+            "motorista": ["João"],
+            "dias_atraso": [5],
+        }
+    )
+    due_today = pd.DataFrame(
+        {
+            "nro_entrega": ["B2"],
+            "nota_fiscal": ["NF-HOJE"],
+            "cliente": ["C2"],
+            "cidade_entrega": ["RJ"],
+            "dt_agendamento": [pd.Timestamp("2026-08-17")],
+            "motorista": ["Ana"],
+            "dias_atraso": [3],
+        }
+    )
+    html = build_report_html(audience_name="SPO", overdue=overdue, due_today=due_today)
+    assert "Notas Fiscais em atraso (2)" in html
+    assert "Notas fiscais que vencem hoje" not in html
+    assert html.count("<table") == 1
+    assert "Dias em atraso igual a 0 indica nota que vence hoje." in html
+    assert "NF-ATRASO" in html
+    assert "NF-HOJE" in html
+    assert html.index("NF-ATRASO") < html.index("NF-HOJE")
+    assert ">5</td>" in html
+    hoje_pos = html.index("NF-HOJE")
+    assert ">0</td>" in html[hoje_pos:]
+    assert html.count("Nenhuma nota fiscal nesta situação.") == 0
+
+
+def test_combine_report_rows_drops_due_today_duplicate():
+    from worker.adapters.report_html import combine_report_rows
+
+    overdue = pd.DataFrame({"nro_entrega": ["A1"], "nota_fiscal": ["NF1"], "dias_atraso": [4]})
+    due_today = pd.DataFrame({"nro_entrega": ["A1"], "nota_fiscal": ["NF1"], "dias_atraso": [0]})
+    out = combine_report_rows(overdue, due_today)
+    assert len(out) == 1
+    assert int(out.iloc[0]["dias_atraso"]) == 4

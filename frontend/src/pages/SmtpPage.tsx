@@ -285,6 +285,9 @@ export function SmtpPage() {
                   />
                   SSL/TLS
                 </label>
+                <p className="page-sub" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>
+                  Porta 465 usa SSL implícito automaticamente. Porta 587 usa STARTTLS quando esta opção estiver marcada.
+                </p>
               </div>
               <div className="field">
                 <label>
