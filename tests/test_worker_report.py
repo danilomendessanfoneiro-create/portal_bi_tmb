@@ -401,7 +401,9 @@ def test_build_report_html_empty_nat_nan():
             "nota_fiscal": ["NF1"],
             "cliente": ["C"],
             "cidade_entrega": ["SP"],
-            "dt_agendamento": [pd.NaT],
+            "dt_cadastro": [pd.NaT],
+            "status": [float("nan")],
+            "remetente": [None],
             "motorista": [float("nan")],
             "dias_atraso": [5],
         }
@@ -414,20 +416,30 @@ def test_build_report_html_empty_nat_nan():
 def test_build_report_html_columns():
     df = pd.DataFrame(
         {
-            "nota_fiscal": ["NF1"],
+            "nota_fiscal": ["1173309/1"],
             "cliente": ["C"],
             "cidade_entrega": ["SP"],
-            "dt_agendamento": [pd.Timestamp("2026-07-20")],
+            "dt_cadastro": [pd.Timestamp("2026-07-20")],
+            "status": ["RECEBIDO"],
+            "remetente": ["INDUSTRIA XYZ"],
             "motorista": ["João"],
             "dias_atraso": [5],
             "valor_total": [99.9],
+            "dt_agendamento": [pd.Timestamp("2026-07-18")],
         }
     )
     html = build_report_html(audience_name="SPO", overdue=df, due_today=pd.DataFrame())
     assert "Valor (R$)" not in html
-    assert "Dt. Agendamento" in html
+    assert "Dt. Agendamento" not in html
+    assert "Dt. Cadastro" in html
+    assert "Status" in html
+    assert "Indústria" in html
     assert "Ult. Motorista" in html
     assert "20/07/2026" in html
+    assert "RECEBIDO" in html
+    assert "INDUSTRIA XYZ" in html
+    assert "1173309" in html
+    assert "1173309/1" not in html
     assert "João" in html
     assert "99,90" not in html
 
@@ -452,10 +464,12 @@ def test_build_report_html_unifies_due_today_as_zero_days():
     overdue = pd.DataFrame(
         {
             "nro_entrega": ["A1"],
-            "nota_fiscal": ["NF-ATRASO"],
+            "nota_fiscal": ["NF-ATRASO/1"],
             "cliente": ["C1"],
             "cidade_entrega": ["SP"],
-            "dt_agendamento": [pd.Timestamp("2026-08-10")],
+            "dt_cadastro": [pd.Timestamp("2026-08-10")],
+            "status": ["RECEBIDO"],
+            "remetente": ["Industria A"],
             "motorista": ["João"],
             "dias_atraso": [5],
         }
@@ -463,10 +477,12 @@ def test_build_report_html_unifies_due_today_as_zero_days():
     due_today = pd.DataFrame(
         {
             "nro_entrega": ["B2"],
-            "nota_fiscal": ["NF-HOJE"],
+            "nota_fiscal": ["NF-HOJE/2"],
             "cliente": ["C2"],
             "cidade_entrega": ["RJ"],
-            "dt_agendamento": [pd.Timestamp("2026-08-17")],
+            "dt_cadastro": [pd.Timestamp("2026-08-17")],
+            "status": ["LIBERADO PARA ENTREGA"],
+            "remetente": ["Industria B"],
             "motorista": ["Ana"],
             "dias_atraso": [3],
         }
@@ -478,6 +494,7 @@ def test_build_report_html_unifies_due_today_as_zero_days():
     assert "Dias em atraso igual a 0 indica nota que vence hoje." in html
     assert "NF-ATRASO" in html
     assert "NF-HOJE" in html
+    assert "NF-ATRASO/1" not in html
     assert html.index("NF-ATRASO") < html.index("NF-HOJE")
     assert ">5</td>" in html
     hoje_pos = html.index("NF-HOJE")

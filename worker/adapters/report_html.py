@@ -10,7 +10,9 @@ HTML_COLUMNS = [
     ("nota_fiscal", "Nota Fiscal"),
     ("cliente", "Cliente"),
     ("cidade_entrega", "Cidade"),
-    ("dt_agendamento", "Dt. Agendamento"),
+    ("dt_cadastro", "Dt. Cadastro"),
+    ("status", "Status"),
+    ("remetente", "Indústria"),
     ("motorista", "Ult. Motorista"),
     ("dias_atraso", "Dias em atraso"),
 ]
@@ -44,6 +46,16 @@ def _fmt_text(value) -> str:
     return text
 
 
+def _fmt_nota_fiscal(value) -> str:
+    """Exibe só o número da NF (remove série após /). Não altera o dado normalizado."""
+    text = _fmt_text(value)
+    if not text:
+        return ""
+    if "/" in text:
+        return text.split("/", 1)[0].strip()
+    return text
+
+
 def _table_html(df: pd.DataFrame) -> str:
     if df is None or df.empty:
         return f"<p>{EMPTY_MSG}</p>"
@@ -52,9 +64,13 @@ def _table_html(df: pd.DataFrame) -> str:
         cells = []
         for src, _label in HTML_COLUMNS:
             val = row[src] if src in row.index else ""
-            if src == "dt_agendamento":
+            if src in {"dt_cadastro", "dt_agendamento"}:
                 cells.append(
                     f'<td style="border:1px solid #ccc;padding:6px;text-align:center;">{_fmt_date(val)}</td>'
+                )
+            elif src == "nota_fiscal":
+                cells.append(
+                    f'<td style="border:1px solid #ccc;padding:6px;">{_fmt_nota_fiscal(val)}</td>'
                 )
             elif src == "dias_atraso":
                 try:
@@ -78,7 +94,7 @@ def _table_html(df: pd.DataFrame) -> str:
     )
     return (
         '<table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;'
-        'max-width:720px;font-family:Arial,Helvetica,sans-serif;font-size:13px;">'
+        'max-width:900px;font-family:Arial,Helvetica,sans-serif;font-size:13px;">'
         f"<thead><tr>{headers}</tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table>"
     )

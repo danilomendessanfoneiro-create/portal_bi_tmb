@@ -60,8 +60,9 @@ O CLI `report_overdue_daily` orquestra três fases:
 - Assunto filial: `Relatório de Entregas - [Filial]`
 - Assunto gerencial: `Relatório de Entregas - [Nome do destinatário]`
 - **Uma única tabela** com título **Notas Fiscais em atraso (N)** — inclui notas em atraso e as que vencem hoje.
-- Colunas: Nota Fiscal, Cliente, Cidade, Dt. Agendamento, Ult. Motorista, Dias em atraso.
+- Colunas: Nota Fiscal (sem série), Cliente, Cidade, Dt. Cadastro, Status, Indústria (`remetente`), Ult. Motorista, Dias em atraso.
 - **Dias em atraso = 0** indica nota que **vence hoje** (não há segunda tabela).
+- Exibição da NF remove a série após `/` só no e-mail; o valor normalizado no banco permanece intacto.
 - Valores vazios de data/motorista → célula em branco (sem `NaT` / `nan`)
 - Filial sem e-mails: log de aviso e pula (não falha o job).
 - Semanal/mensal do gerencial: **somente parametrização** nesta etapa (log se `--if-due` disparar).
