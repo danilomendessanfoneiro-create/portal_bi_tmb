@@ -7,7 +7,15 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.deps import require_admin
-from app.api.schemas import MessageOut, UserCreateBody, UserListResponse, UserOut, UserUpdateBody
+from app.api.schemas import (
+    AdminSetPasswordBody,
+    AdminSetPasswordOut,
+    MessageOut,
+    UserCreateBody,
+    UserListResponse,
+    UserOut,
+    UserUpdateBody,
+)
 from app.models import User
 from app.schemas import UserCreate, UserFilter, UserUpdate
 from app.services import UserService, UserServiceError
@@ -25,6 +33,8 @@ def _to_out(user: User) -> UserOut:
         name=user.name,
         code=user.code,
         report_emails=user.report_emails,
+        login_email=user.login_email,
+        must_change_password=bool(user.must_change_password),
         enabled=user.enabled,
         created_on=user.created_on,
         modified_on=user.modified_on,
@@ -81,14 +91,16 @@ def create_user(body: UserCreateBody, admin: Annotated[User, Depends(require_adm
         user = UserService().create(
             UserCreate(
                 login=body.login,
-                password=body.password,
+                password=body.password or "",
                 profile=body.profile,
                 branch=body.branch,
                 display_name=body.display_name,
                 name=body.name,
                 code=body.code,
                 report_emails=body.report_emails,
+                login_email=body.login_email,
                 enabled=body.enabled,
+                send_provisional=bool(body.send_provisional),
             ),
             actor=admin.login,
         )
@@ -115,6 +127,7 @@ def update_user(
                 name=body.name,
                 code=body.code,
                 report_emails=body.report_emails,
+                login_email=body.login_email,
                 enabled=body.enabled,
             ),
             actor=admin.login,
@@ -122,6 +135,39 @@ def update_user(
     except UserServiceError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _to_out(user)
+
+
+@router.post("/{user_id}/password", response_model=AdminSetPasswordOut)
+def set_user_password(
+    user_id: int,
+    body: AdminSetPasswordBody,
+    admin: Annotated[User, Depends(require_admin)],
+) -> AdminSetPasswordOut:
+    try:
+        _user, generated = UserService().set_password_admin(
+            user_id,
+            password=body.password,
+            generate=bool(body.generate),
+            actor=admin.login,
+        )
+    except UserServiceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return AdminSetPasswordOut(
+        detail="Senha atualizada",
+        generated_password=generated,
+    )
+
+
+@router.post("/{user_id}/provisional-password", response_model=MessageOut)
+def send_provisional_password(
+    user_id: int,
+    admin: Annotated[User, Depends(require_admin)],
+) -> MessageOut:
+    try:
+        UserService().send_provisional_password(user_id, actor=admin.login)
+    except UserServiceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return MessageOut(detail="Senha provisória enviada por e-mail")
 
 
 @router.delete("/{user_id}", response_model=MessageOut)

@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from "react";
 import HCaptcha from "@hcaptcha/react-hcaptcha";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../auth";
 import "./LoginPage.css";
 
@@ -89,6 +89,9 @@ export function LoginPage() {
         <button className="btn btn-primary" type="submit" disabled={submitting} style={{ width: "100%" }}>
           {submitting ? "Entrando…" : "Entrar"}
         </button>
+        <p style={{ marginTop: "1rem", textAlign: "center" }}>
+          <Link to="/forgot-password">Esqueci minha senha</Link>
+        </p>
       </form>
     </div>
   );

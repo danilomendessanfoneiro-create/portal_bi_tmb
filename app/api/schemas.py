@@ -29,6 +29,8 @@ class UserOut(BaseModel):
     name: Optional[str] = None
     code: Optional[str] = None
     report_emails: Optional[str] = None
+    login_email: Optional[str] = None
+    must_change_password: bool = False
     enabled: bool = True
     created_on: Optional[datetime] = None
     modified_on: Optional[datetime] = None
@@ -36,14 +38,16 @@ class UserOut(BaseModel):
 
 class UserCreateBody(BaseModel):
     login: str
-    password: str
+    password: str = ""
     profile: str = "filial"
     branch: Optional[str] = None
     display_name: Optional[str] = None
     name: Optional[str] = None
     code: Optional[str] = None
     report_emails: Optional[str] = None
+    login_email: Optional[str] = None
     enabled: bool = True
+    send_provisional: bool = False
 
 
 class UserUpdateBody(BaseModel):
@@ -55,6 +59,7 @@ class UserUpdateBody(BaseModel):
     name: Optional[str] = None
     code: Optional[str] = None
     report_emails: Optional[str] = None
+    login_email: Optional[str] = None
     enabled: Optional[bool] = None
 
 
@@ -66,6 +71,37 @@ class UserListResponse(BaseModel):
 
 
 class MessageOut(BaseModel):
+    detail: str
+
+
+class AdminSetPasswordBody(BaseModel):
+    password: Optional[str] = None
+    generate: bool = False
+
+
+class AdminSetPasswordOut(BaseModel):
+    detail: str
+    generated_password: Optional[str] = None
+
+
+class ChangeOwnPasswordBody(BaseModel):
+    current_password: str
+    new_password: str
+    confirm_password: str
+
+
+class ForgotPasswordBody(BaseModel):
+    email: str
+
+
+class ResetPasswordBody(BaseModel):
+    token: str
+    new_password: str
+    confirm_password: str
+
+
+class ResetTokenStatusOut(BaseModel):
+    valid: bool
     detail: str
 
 

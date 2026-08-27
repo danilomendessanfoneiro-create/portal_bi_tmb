@@ -30,6 +30,9 @@ def _row_to_user(row: dict[str, Any]) -> User:
         name=row.get("name"),
         code=row.get("code"),
         report_emails=row.get("report_emails"),
+        login_email=row.get("login_email"),
+        must_change_password=bool(row.get("must_change_password", False)),
+        temporary_password_expires_at=row.get("temporary_password_expires_at"),
         created_by=row.get("created_by"),
         created_on=row.get("created_on"),
         modified_by=row.get("modified_by"),
@@ -51,6 +54,15 @@ class UserRepository:
     def get_by_login(self, login: str, *, include_disabled: bool = False) -> Optional[User]:
         sql = "SELECT * FROM prb_users WHERE lower(login) = lower(%s)"
         params: list[Any] = [login]
+        if not include_disabled:
+            sql += " AND enabled = TRUE"
+        with get_connection() as conn:
+            row = conn.execute(sql, params).fetchone()
+        return _row_to_user(row) if row else None
+
+    def get_by_login_email(self, email: str, *, include_disabled: bool = False) -> Optional[User]:
+        sql = "SELECT * FROM prb_users WHERE login_email IS NOT NULL AND lower(login_email) = lower(%s)"
+        params: list[Any] = [email]
         if not include_disabled:
             sql += " AND enabled = TRUE"
         with get_connection() as conn:
@@ -112,17 +124,18 @@ class UserRepository:
         name: Optional[str],
         code: Optional[str],
         report_emails: Optional[str],
+        login_email: Optional[str] = None,
         enabled: bool,
         actor: str,
     ) -> User:
         sql = """
             INSERT INTO prb_users (
                 login, password_hash, profile, branch, display_name, name, code,
-                report_emails,
+                report_emails, login_email,
                 created_by, created_on, modified_by, modified_on, enabled
             ) VALUES (
                 %s, %s, %s, %s, %s, %s, %s,
-                %s,
+                %s, %s,
                 %s, NOW(), %s, NOW(), %s
             )
             RETURNING *
@@ -139,6 +152,7 @@ class UserRepository:
                     name,
                     code,
                     report_emails,
+                    login_email,
                     actor,
                     actor,
                     enabled,
@@ -159,6 +173,9 @@ class UserRepository:
             "name",
             "code",
             "report_emails",
+            "login_email",
+            "must_change_password",
+            "temporary_password_expires_at",
             "enabled",
         }
         sets = []

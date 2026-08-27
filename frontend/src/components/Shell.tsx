@@ -78,6 +78,13 @@ export function Shell() {
           >
             Visualização
           </NavLink>
+          <NavLink
+            to="/account"
+            className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
+            onClick={() => setDrawerOpen(false)}
+          >
+            Minha conta
+          </NavLink>
 
           {isAdmin && (
             <>

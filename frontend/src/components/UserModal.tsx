@@ -21,7 +21,9 @@ const empty: UserFormValues = {
   name: "",
   code: "",
   report_emails: "",
+  login_email: "",
   enabled: true,
+  send_provisional: false,
 };
 
 export function UserModal({
@@ -74,17 +76,39 @@ export function UserModal({
             />
           </div>
           <div className="field">
+            <label htmlFor="u-login-email">E-mail de Login</label>
+            <input
+              id="u-login-email"
+              type="email"
+              value={values.login_email}
+              onChange={(e) => set("login_email", e.target.value)}
+              autoComplete="email"
+              placeholder="usuario@empresa.com.br"
+            />
+          </div>
+          <div className="field">
             <label htmlFor="u-password">
-              Senha {requirePassword ? "" : "(opcional)"}
+              Senha{" "}
+              {requirePassword && !(values.login_email || "").trim()
+                ? ""
+                : requirePassword
+                  ? "(opcional se for enviar acesso por e-mail)"
+                  : "(opcional)"}
             </label>
             <input
               id="u-password"
               type="password"
               value={values.password}
               onChange={(e) => set("password", e.target.value)}
-              required={requirePassword}
+              required={requirePassword && !(values.login_email || "").trim()}
               autoComplete="new-password"
             />
+            {requirePassword && (
+              <small style={{ color: "var(--muted)" }}>
+                Se informar e-mail de login, ao salvar será perguntado se deseja enviar o acesso por e-mail
+                (usuário + senha provisória).
+              </small>
+            )}
           </div>
           <div className="field">
             <label htmlFor="u-profile">Perfil</label>
@@ -181,6 +205,8 @@ export function userToForm(user: User): UserFormValues {
     name: user.name || "",
     code: user.code || "",
     report_emails: user.report_emails || "",
+    login_email: user.login_email || "",
     enabled: user.enabled,
+    send_provisional: false,
   };
 }

@@ -1,138 +1,235 @@
 {
   "project": "Portal BI TMB",
-  "branchName": "atlas/reestruturacao-automacoes-monitoramento",
-  "description": "Reestruturar Automações: dias da semana, jobs da API e Integração API ocultos, defaults desativados, robôs visíveis só com ativo+dia+horário, e-mail técnico após cada execução via SMTP de ambiente.",
+  "branchName": "develop",
+  "description": "Melhorias de acesso: e-mail de login, senhas (admin/self), recuperação por link (30min), senha provisória 24h, novo usuário com perfis admin/filial existentes (sem perfil Gestão de Entregas). SMTP padrão operacional. Sem commit/push.",
   "targetRepo": null,
-  "sourcePrd": "tasks/prd-reestruturacao-automacoes-monitoramento.md",
+  "sourcePrd": "tasks/prd-melhorias-acesso-usuarios-senhas.md",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Migration de dias da semana e defaults",
-      "description": "As a developer, I need run_weekdays on prb_job_settings and seeded defaults so schedules persist Mon–Sat, new times, and disabled jobs.",
+      "title": "Schema — e-mail de login e flags de senha",
+      "description": "As a developer, I need columns for login email and provisional-password state so credentials flows persist securely.",
       "acceptanceCriteria": [
-        "Migration 041 adiciona run_weekdays em prb_job_settings (smallint[] 0=Domingo … 6=Sábado)",
-        "Default {1,2,3,4,5,6}; audit prb_job_settings_audit inclui run_weekdays",
-        "Jobs visíveis: TMS 05:00 enabled=false; filiais/clientes/gerencial 08:00 enabled=false; mesmos dias",
-        "import_deliveries_daily e import_deliveries_initial permanecem enabled=false; frequency/weekday/day_of_month não são dropados",
-        "Tests pass"
+        "Migration adds unique (case-insensitive) login email field on users table (nullable allowed initially if needed for legacy rows)",
+        "Migration adds must_change_password (bool, default false) and temporary_password_expires_at (timestamptz, nullable)",
+        "Follow existing prb_* / migration naming conventions",
+        "Tests pass",
+        "Typecheck passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "041_add_job_run_weekdays.sql aplicada; TMS 05:00 e relatórios 08:00 desativados; API jobs enabled=false"
+      "notes": "Migration 044 aplicada; User + repository mapeiam login_email, must_change_password, temporary_password_expires_at; testes OK"
     },
     {
       "id": "US-002",
-      "title": "Scheduler e API respeitam dias + ativo + horário",
-      "description": "As a system, I want is_due and the schedules API to honor weekdays so no visible robot runs on the wrong day or while disabled.",
+      "title": "Schema — tokens de recuperação de senha",
+      "description": "As a developer, I need a password-recovery table storing only token hashes with expiry and single-use status.",
       "acceptanceCriteria": [
-        "is_due false se enabled=false, se dia não está em run_weekdays, ou se agora < local_time",
-        "PUT /api/settings/schedules/{job_id} aceita run_weekdays number[] (0–6); rejeita vazio",
-        "GET devolve run_weekdays; os quatro robôs visíveis usam o mesmo is_due",
-        "Tests pass"
+        "Table created (project naming) with user_id, token_hash, created_at, expires_at, used_at, revoked_at, status",
+        "Status supports Pending / Used / Expired / Revoked (or equivalent)",
+        "Index/lookup suitable for validating an active token",
+        "Tests pass",
+        "Typecheck passes"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "is_due checa enabled + run_weekdays + horário; PUT rejeita array vazio; GET devolve run_weekdays"
+      "notes": "Migration 045 prb_password_recovery com status Pending/Used/Expired/Revoked e índice active"
     },
     {
       "id": "US-003",
-      "title": "Robôs visíveis só rodam nos novos critérios",
-      "description": "As an operator, I want TMS fetch and the three report phases to skip when inactive, on Sunday (default), or before the configured hour so robots obey the new rules.",
+      "title": "Serviço — validação e persistência de e-mail de login",
+      "description": "As an admin API, I want login email create/update with format, trim, case-insensitive uniqueness.",
       "acceptanceCriteria": [
-        "fetch_tmselite_spreadsheet --if-due respeita enabled, run_weekdays e horário",
-        "report_overdue_daily --if-due avalia cada fase com is_due; fora dos critérios → skipped",
-        "Domingo com defaults: nenhum robô visível dispara via --if-due",
-        "Testes: dia habilitado após horário; dia não habilitado; job desativado; horário ainda não chegou",
-        "Tests pass"
+        "User create/update accepts login email with trim + format validation",
+        "Duplicate emails rejected with clear API error",
+        "Non-admin cannot change another user's login email (backend enforced)",
+        "Tests pass",
+        "Typecheck passes"
       ],
       "priority": 3,
       "passes": true,
-      "notes": "fetch e fases de relatório skipped via --if-due; domingo/desativado/antes do horário cobertos"
+      "notes": "login_email em schemas/API/service/repo; validação trim/case/unique; testes OK"
     },
     {
       "id": "US-004",
-      "title": "Ocultar automações da API na tela",
-      "description": "As an admin client, I should not see API delivery jobs on Automações so the UI only shows TMS + reports.",
+      "title": "UI Admin — campo E-mail de Login",
+      "description": "As an administrator, I want to view/edit login email on the users management screen.",
       "acceptanceCriteria": [
-        "GET /api/settings/schedules não retorna import_deliveries_daily, import_deliveries_initial nem import_deliveries",
-        "Tela mostra só TMS Elite, Filiais, Clientes e Gerencial",
-        "Código/jobs da API preservados e enabled=false",
+        "Login email field on user create and edit (Admin React and/or current users UI)",
+        "Validation errors shown to the user",
+        "Persistence round-trip works after save",
         "Typecheck passes",
         "Verify in browser"
       ],
       "priority": 4,
       "passes": true,
-      "notes": "JobScheduleService.list filtra import_deliveries*; MCP browser indisponível — UI só renderiza o GET"
+      "notes": "Campo E-mail de Login no UserModal + coluna na lista; API create/update; tsc+vite build OK; browser não verificado neste ambiente"
     },
     {
       "id": "US-005",
-      "title": "Ocultar menu Integração API",
-      "description": "As an admin client, I should not see Configurações → Integração API in the navigation so API setup is not exposed.",
+      "title": "Utilitário — geração de senha segura",
+      "description": "As the system, I want cryptographically secure password generation meeting policy (upper, lower, digit, special, min length).",
       "acceptanceCriteria": [
-        "Remover link Integração API de Shell.tsx e SettingsPage.tsx",
-        "Rota ApiIntegrationPage e backend permanecem",
-        "Typecheck passes",
-        "Verify in browser"
+        "Shared helper generates passwords without using user name/email/predictable data",
+        "Meets documented complexity rules used by the app",
+        "Unit tests cover charset/length requirements",
+        "Tests pass",
+        "Typecheck passes"
       ],
       "priority": 5,
       "passes": true,
-      "notes": "Nav Integração API removido de Shell e SettingsPage; rota ApiIntegrationPage permanece. Browser MCP indisponível."
+      "notes": "generate_secure_password + validate_password_policy (min 12, upper/lower/digit/special); testes OK"
     },
     {
       "id": "US-006",
-      "title": "CRUD Automações com dias da semana",
-      "description": "As an admin, I want checkboxes for the seven weekdays on each visible automation card so I can choose when robots run.",
+      "title": "Admin — alterar senha de usuário",
+      "description": "As an administrator, I want to set or auto-generate a new password for a user.",
       "acceptanceCriteria": [
-        "Seção Dias de execução com sete checkboxes; padrão seg–sáb, domingo desmarcado",
-        "Salvar via PUT; job_id técnico oculto; TMS mantém URL/usuário/senha",
+        "Backend endpoint/action requires admin; stores hash only via existing hasher",
+        "UI action Alterar senha with manual entry and gerar senha segura",
+        "Password never logged or returned in plain text after save",
         "Typecheck passes",
         "Verify in browser"
       ],
       "priority": 6,
       "passes": true,
-      "notes": "Checkboxes Dias de execução no SchedulePage; PUT run_weekdays. Browser MCP indisponível."
+      "notes": "POST /users/{id}/password + ChangePasswordModal; generate retorna senha uma vez; build OK"
     },
     {
       "id": "US-007",
-      "title": "Completar registro de execução nos job runs",
-      "description": "As a developer, I want each robot run stored with timing, status, counts and error step so monitoring emails and a future history screen have data.",
+      "title": "Usuário — alterar própria senha",
+      "description": "As an authenticated user, I want to change my password using current + new + confirm.",
       "acceptanceCriteria": [
-        "Reutilizar prb_job_runs; estender metrics/colunas se faltar etapa ou duration_ms",
-        "success/failed no e-mail como SUCESSO/FALHA; skipped não gera e-mail técnico",
-        "Métricas quando aplicável: processados, inseridos, atualizados, e-mails ok/erro, etapa da falha",
-        "Tests pass"
+        "Flow under account/settings: current, new, confirm",
+        "Validates current password and policy; cannot change another user's password",
+        "Updates hash on success",
+        "Typecheck passes",
+        "Verify in browser"
       ],
       "priority": 7,
       "passes": true,
-      "notes": "042 duration_ms + error_step em prb_job_runs; skipped não notifica"
+      "notes": "POST /auth/change-password + página Minha conta; testes e build OK"
     },
     {
       "id": "US-008",
-      "title": "SMTP técnico e e-mail após cada robô",
-      "description": "As a technical operator, I want a monitoring email after each visible robot run (success or failure) using env SMTP, not the client SMTP.",
+      "title": "Recuperação — solicitar reset (anti-enumeração)",
+      "description": "As a user, I want to request password recovery from login without revealing whether the email exists.",
       "acceptanceCriteria": [
-        "SMTP técnico só via env (gmail 587); senha/destinatário nunca na UI nem no código",
-        "E-mail após cada execução real dos 4 robôs visíveis; skipped não envia",
-        "Assunto Portal BI – Relatório de Execução das Automações – DD/MM/YYYY; corpo com RESUMO + DETALHAMENTO do robô",
-        "Falha SMTP técnico não desfaz o job; envio mockado nos testes",
-        "Tests pass"
+        "Login UI has Esqueci minha senha requesting email",
+        "Same success message whether email exists or not",
+        "When email exists: create recovery record, hash token, expiry 30 minutes, revoke prior pending tokens for that user",
+        "Tests pass",
+        "Typecheck passes"
       ],
       "priority": 8,
       "passes": true,
-      "notes": "tech_monitor_service via TECH_SMTP_*; e-mail após complete_run success/failed dos 4 jobs visíveis"
+      "notes": "POST /auth/forgot-password + ForgotPasswordPage; token hash 30min; mensagem genérica; testes OK"
     },
     {
       "id": "US-009",
-      "title": "Documentação das automações",
-      "description": "As an operator, I want docs updated so VPS and local setup match weekday scheduling, hidden API jobs, and technical SMTP.",
+      "title": "Recuperação — e-mail com link (SMTP padrão)",
+      "description": "As a user, I want a recovery email with a secure link via the operational default SMTP.",
       "acceptanceCriteria": [
-        "Atualizar docs/servico-jobs.md e trechos de deploy-vps se necessário",
-        ".env.example com chaves técnicas e senha vazia",
-        "Documentation complete"
+        "Email sent using default prb_smtp_settings (not TECH_SMTP)",
+        "Body includes system id, guidance, link with token only, 30-minute expiry notice; no current password",
+        "Link path follows app routing (reset-password?token=...)",
+        "Tests pass",
+        "Typecheck passes"
       ],
       "priority": 9,
       "passes": true,
-      "notes": "docs/servico-jobs.md, deploy-vps.md e .env.example atualizados"
+      "notes": "E-mail recuperação via SMTP padrão (outbound_mail); link ADMIN_PUBLIC_URL/reset-password?token=; testes OK"
+    },
+    {
+      "id": "US-010",
+      "title": "Recuperação — tela de nova senha por token",
+      "description": "As a user with a valid link, I want to set a new password and invalidate the token.",
+      "acceptanceCriteria": [
+        "Page validates token (hash, user, expiry, unused/not revoked)",
+        "Expired/invalid shows friendly message and blocks change",
+        "On success: update hash, mark token used, redirect to login",
+        "Typecheck passes",
+        "Verify in browser"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": "GET/POST /auth/reset-password + ResetPasswordPage; token expirado/ inválido; testes+build OK"
+    },
+    {
+      "id": "US-011",
+      "title": "Admin — enviar senha provisória (24h)",
+      "description": "As an administrator, I want to email a provisional password so the user can first-access the system.",
+      "acceptanceCriteria": [
+        "Action Enviar senha provisória with confirmation; requires login email present",
+        "Generates secure password, stores hash, sets must_change_password=true, temporary_password_expires_at=now+24h",
+        "Email via default SMTP includes provisional password, access link, first-access guidance",
+        "Re-send invalidates previous provisional window (new hash + new expiry)",
+        "Typecheck passes",
+        "Verify in browser"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": "POST /users/{id}/provisional-password; e-mail SMTP padrão; must_change + expires 24h; UI botão"
+    },
+    {
+      "id": "US-012",
+      "title": "Login — gate must_change_password e expiração 24h",
+      "description": "As the system, I want provisional logins forced into password change and expired provisionals rejected.",
+      "acceptanceCriteria": [
+        "Login with expired provisional password fails with clear message",
+        "Successful provisional login sets session but blocks normal features until password change (only change-password + logout)",
+        "Backend enforces the gate (not UI-only)",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": "AuthError expiração; require_admin bloqueia must_change; redirect /force-change-password"
+    },
+    {
+      "id": "US-013",
+      "title": "Primeiro acesso — definir senha definitiva",
+      "description": "As a user on provisional password, I want to set a definitive password and continue authenticated.",
+      "acceptanceCriteria": [
+        "Mandatory screen: new + confirm; must differ from provisional; meets policy",
+        "On save: update hash, must_change_password=false, clear temporary expiry, audit",
+        "User remains authenticated when session model allows; redirect to home",
+        "Typecheck passes",
+        "Verify in browser"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": "ForceChangePasswordPage + changeOwnPassword; refresh mantém sessão e libera PrivateShell"
+    },
+    {
+      "id": "US-014",
+      "title": "Admin — criar novo usuário (sem perfil Gestão de Entregas)",
+      "description": "As an administrator, I want to create a new user with existing profiles only (admin/filial), including login email and optional provisional password send.",
+      "acceptanceCriteria": [
+        "Create-user flow supports login email and existing profiles only — no new Gestão de Entregas profile/role",
+        "Filial profile still requires branch; admin profile follows current rules",
+        "Optional send provisional password after create when email present",
+        "Typecheck passes",
+        "Verify in browser"
+      ],
+      "priority": 14,
+      "passes": true,
+      "notes": "Create só admin/filial; checkbox send_provisional no UserModal; API send_provisional"
+    },
+    {
+      "id": "US-015",
+      "title": "Auditoria e hardening de autorização",
+      "description": "As security, I want admin password/email/provisional operations audited and backend-authorized without logging secrets.",
+      "acceptanceCriteria": [
+        "Audit covers admin password change, recovery request, provisional send, self password change, first-access completion",
+        "Never audit plaintext password or raw token",
+        "Admin-only operations return 403 for non-admin on API",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": true,
+      "notes": "access_audit logger; require_admin 403; sem senha/token em logs"
     }
   ]
 }

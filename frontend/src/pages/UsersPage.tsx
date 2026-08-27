@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { createUser, deactivateUser, listUsers, updateUser } from "../api";
+import { createUser, deactivateUser, listUsers, sendProvisionalPassword, setUserPassword, updateUser } from "../api";
 import { useAuth } from "../auth";
+import { ChangePasswordModal } from "../components/ChangePasswordModal";
 import { UserModal, userToForm } from "../components/UserModal";
 import type { User, UserFormValues } from "../types";
 
@@ -22,6 +23,10 @@ export function UsersPage() {
   const [editing, setEditing] = useState<User | null>(null);
   const [saving, setSaving] = useState(false);
   const [modalError, setModalError] = useState("");
+  const [pwdUser, setPwdUser] = useState<User | null>(null);
+  const [pwdSaving, setPwdSaving] = useState(false);
+  const [pwdError, setPwdError] = useState("");
+  const [pwdGenerated, setPwdGenerated] = useState<string | null>(null);
 
   const isAdmin = (user?.profile || "").toLowerCase() === "admin";
 
@@ -79,10 +84,26 @@ export function UsersPage() {
     setSaving(true);
     setModalError("");
     try {
+      let payload = { ...values };
+      if (!editing) {
+        const email = (payload.login_email || "").trim();
+        if (email) {
+          const sendAccess = window.confirm(
+            `O e-mail de acesso "${email}" foi informado.\n\n` +
+              `Deseja enviar o acesso ao usuário (login + senha provisória) por e-mail?`,
+          );
+          payload = { ...payload, send_provisional: sendAccess };
+          if (sendAccess) {
+            payload = { ...payload, password: "" };
+          }
+        } else {
+          payload = { ...payload, send_provisional: false };
+        }
+      }
       if (editing) {
-        await updateUser(editing.id, values);
+        await updateUser(editing.id, payload);
       } else {
-        await createUser(values);
+        await createUser(payload);
       }
       setModalOpen(false);
       await load();
@@ -100,6 +121,48 @@ export function UsersPage() {
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao desativar");
+    }
+  }
+
+  function openChangePassword(u: User) {
+    setPwdUser(u);
+    setPwdError("");
+    setPwdGenerated(null);
+  }
+
+  async function handleChangePassword(payload: { password?: string; generate: boolean }) {
+    if (!pwdUser) return;
+    setPwdSaving(true);
+    setPwdError("");
+    try {
+      const res = await setUserPassword(pwdUser.id, payload);
+      setPwdGenerated(res.generated_password || null);
+      if (!payload.generate) {
+        setPwdUser(null);
+      }
+    } catch (err) {
+      setPwdError(err instanceof Error ? err.message : "Erro ao alterar senha");
+    } finally {
+      setPwdSaving(false);
+    }
+  }
+
+  async function handleProvisional(u: User) {
+    if (
+      !window.confirm(
+        `Enviar senha provisória por e-mail para "${u.login}"` +
+          (u.login_email ? ` (${u.login_email})` : "") +
+          "?",
+      )
+    ) {
+      return;
+    }
+    try {
+      await sendProvisionalPassword(u.id);
+      await load();
+      window.alert("Senha provisória enviada por e-mail.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao enviar senha provisória");
     }
   }
 
@@ -162,6 +225,7 @@ export function UsersPage() {
                 {[
                   ["login", "Login"],
                   ["display_name", "Nome"],
+                  ["login_email", "E-mail de Login"],
                   ["profile", "Perfil"],
                   ["branch", "Filial"],
                   ["enabled", "Status"],
@@ -177,17 +241,18 @@ export function UsersPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6}>Carregando…</td>
+                  <td colSpan={7}>Carregando…</td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>Nenhum usuário encontrado.</td>
+                  <td colSpan={7}>Nenhum usuário encontrado.</td>
                 </tr>
               ) : (
                 items.map((u) => (
                   <tr key={u.id}>
                     <td>{u.login}</td>
                     <td>{u.display_name || u.name || "—"}</td>
+                    <td>{u.login_email || "—"}</td>
                     <td>
                       <span className={`badge badge-${u.profile === "admin" ? "admin" : "filial"}`}>
                         {u.profile}
@@ -203,6 +268,20 @@ export function UsersPage() {
                       <div className="row-actions">
                         <button type="button" className="btn btn-ghost" onClick={() => openEdit(u)}>
                           Editar
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={() => openChangePassword(u)}
+                        >
+                          Alterar senha
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={() => void handleProvisional(u)}
+                        >
+                          Senha provisória
                         </button>
                         {u.enabled && (
                           <button
@@ -254,6 +333,15 @@ export function UsersPage() {
         error={modalError}
         onClose={() => setModalOpen(false)}
         onSubmit={handleSave}
+      />
+      <ChangePasswordModal
+        open={Boolean(pwdUser)}
+        loginLabel={pwdUser?.login || ""}
+        saving={pwdSaving}
+        error={pwdError}
+        generatedPassword={pwdGenerated}
+        onClose={() => setPwdUser(null)}
+        onSubmit={handleChangePassword}
       />
     </div>
   );

@@ -62,7 +62,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await apiLogin(loginName, password, hcaptchaToken);
       setToken(res.access_token);
       setUser(res.user);
-      navigate("/", { replace: true });
+      if (res.user.must_change_password) {
+        navigate("/force-change-password", { replace: true });
+      } else {
+        navigate("/", { replace: true });
+      }
     },
     [navigate],
   );

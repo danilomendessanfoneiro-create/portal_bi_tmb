@@ -66,6 +66,40 @@ export function fetchMe(): Promise<User> {
   return request<User>("/auth/me");
 }
 
+export function changeOwnPassword(body: {
+  current_password: string;
+  new_password: string;
+  confirm_password: string;
+}): Promise<{ detail: string }> {
+  return request("/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function forgotPassword(email: string): Promise<{ detail: string }> {
+  return request("/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function resetPasswordStatus(token: string): Promise<{ valid: boolean; detail: string }> {
+  const q = new URLSearchParams({ token });
+  return request(`/auth/reset-password?${q.toString()}`);
+}
+
+export function resetPassword(body: {
+  token: string;
+  new_password: string;
+  confirm_password: string;
+}): Promise<{ detail: string }> {
+  return request("/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 export function listUsers(params: {
   search?: string;
   page?: number;
@@ -97,7 +131,9 @@ export function createUser(values: UserFormValues): Promise<User> {
       name: values.name || null,
       code: values.code || null,
       report_emails: values.profile === "filial" ? values.report_emails || null : null,
+      login_email: values.login_email || null,
       enabled: values.enabled,
+      send_provisional: Boolean(values.send_provisional),
     }),
   });
 }
@@ -117,6 +153,7 @@ export function updateUser(id: number, values: Partial<UserFormValues>): Promise
         ? values.report_emails || null
         : null;
   }
+  if (values.login_email !== undefined) body.login_email = values.login_email || null;
   if (values.enabled !== undefined) body.enabled = values.enabled;
   return request<User>(`/users/${id}`, {
     method: "PUT",
@@ -126,6 +163,23 @@ export function updateUser(id: number, values: Partial<UserFormValues>): Promise
 
 export function deactivateUser(id: number): Promise<{ detail: string }> {
   return request<{ detail: string }>(`/users/${id}`, { method: "DELETE" });
+}
+
+export function setUserPassword(
+  id: number,
+  payload: { password?: string; generate?: boolean },
+): Promise<{ detail: string; generated_password?: string | null }> {
+  return request(`/users/${id}/password`, {
+    method: "POST",
+    body: JSON.stringify({
+      password: payload.password ?? null,
+      generate: Boolean(payload.generate),
+    }),
+  });
+}
+
+export function sendProvisionalPassword(id: number): Promise<{ detail: string }> {
+  return request(`/users/${id}/provisional-password`, { method: "POST" });
 }
 
 export function listSmtp(params: {

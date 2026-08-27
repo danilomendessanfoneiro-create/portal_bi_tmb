@@ -1,33 +1,53 @@
-# Atlas progress ? reestruturacao-automacoes-monitoramento
-# Source: tasks/prd-reestruturacao-automacoes-monitoramento.md
-# Branch de trabalho: atual (sem commits, conforme PRD)
+# Atlas progress — melhorias-acesso-usuarios-senhas
+# Source: tasks/prd-melhorias-acesso-usuarios-senhas.md
+# Branch de trabalho: develop (sem commits/push, conforme PRD)
 
-## [US-001] Migration de dias da semana e defaults ? DONE
-- Migration 041: run_weekdays smallint[] (0=Dom?6=S?b), default {1,2,3,4,5,6}
-- TMS 05:00 / relat?rios 08:00 / vis?veis e API enabled=false
+## [US-001] Schema — e-mail de login e flags de senha — DONE
+- Migration 044: login_email (unique lower), must_change_password, temporary_password_expires_at + audit
+- Model/repository atualizados; testes schema OK; migration aplicada no Postgres local
 
-## [US-002] Scheduler e API respeitam dias + ativo + hor?rio ? DONE
-- is_due: enabled, run_weekdays, local_time; PUT/GET run_weekdays
+## [US-002] Schema — tokens de recuperação de senha — DONE
+- Migration 045: prb_password_recovery (token_hash, status, expires_at, índice active)
 
-## [US-003] Rob?s vis?veis s? rodam nos novos crit?rios ? DONE
-- fetch e fases de relat?rio skipped via --if-due
+## [US-003] Serviço — validação e persistência de e-mail de login — DONE
+- validate_login_email; create/update com unicidade; API UserOut/Create/Update com login_email
 
-## [US-004] Ocultar automa??es da API na tela ? DONE
-- GET /settings/schedules omite import_deliveries*
+## [US-004] UI Admin — campo E-mail de Login — DONE
+- UserModal + UsersPage + api/types; frontend build OK
 
-## [US-005] Ocultar menu Integra??o API ? DONE
-- Link removido de Shell e SettingsPage; rota preservada
+## [US-005] Utilitário — geração de senha segura — DONE
+- generate_secure_password / validate_password_policy em app/utils/password.py; testes OK
 
-## [US-006] CRUD Automa??es com dias da semana ? DONE
-- Checkboxes Dias de execu??o no SchedulePage
+## [US-006] Admin — alterar senha de usuário — DONE
+- POST /api/users/{id}/password; ChangePasswordModal; senha gerada exibida uma vez
 
-## [US-007] Completar registro de execu??o nos job runs ? DONE
-- Migration 042: duration_ms, error_step
+## [US-007] Usuário — alterar própria senha — DONE
+- POST /auth/change-password; AccountPage /account; nav Minha conta
 
-## [US-008] SMTP t?cnico e e-mail ap?s cada rob? ? DONE
-- tech_monitor_service + gancho em complete_run (env TECH_SMTP_*)
+## [US-008] Recuperação — solicitar reset (anti-enumeração) — DONE
+- PasswordRecoveryService + POST /auth/forgot-password; UI Esqueci minha senha; token hasheado 30min
 
-## [US-009] Documenta??o das automa??es ? DONE
-- docs/servico-jobs.md, docs/deploy-vps.md, .env.example
+## [US-009] Recuperação — e-mail com link (SMTP padrão) — DONE
+- send via resolve_default_smtp; corpo com link 30min; sem senha atual
 
-COMPLETE 2026-08-14 ? tasks/prd-reestruturacao-automacoes-monitoramento.md
+## [US-010] Recuperação — tela de nova senha por token — DONE
+- validate/reset token; ResetPasswordPage; redirect login
+
+## [US-011] Admin — enviar senha provisória (24h) — DONE
+- send_provisional_password + e-mail; botão na lista de usuários
+
+## [US-012] Login — gate must_change_password e expiração 24h — DONE
+- AuthError se provisória expirada; APIs admin bloqueadas; redirect force-change
+
+## [US-013] Primeiro acesso — definir senha definitiva — DONE
+- ForceChangePasswordPage; change-password; refresh e acesso normal
+
+## [US-014] Admin — criar novo usuário (sem perfil Gestão de Entregas) — DONE
+- Perfis só admin/filial; send_provisional no create
+
+## [US-015] Auditoria e hardening de autorização — DONE
+- access_audit; require_admin; sem secrets nos logs
+
+## COMPLETE — 2026-08-27
+- sourcePrd: tasks/prd-melhorias-acesso-usuarios-senhas.md
+- branch: develop (sem commit/push)

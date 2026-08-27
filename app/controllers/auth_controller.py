@@ -11,7 +11,7 @@ import streamlit.components.v1 as components
 from app.config import settings
 from app.models import User
 from app.repositories import UserRepository
-from app.services import AuthService
+from app.services.auth_service import AuthError, AuthService
 from app.utils.embed import is_embedded
 from app.utils.jwt_tokens import create_access_token, decode_access_token
 from app.utils.style import aplicar_estilo
@@ -134,14 +134,15 @@ def render_login() -> None:
         if entrar:
             try:
                 user = auth.authenticate(usuario.strip(), senha)
+            except AuthError as exc:
+                st.error(exc.message)
+                return
             except Exception as exc:
                 st.error(f"Falha ao autenticar (banco indisponível?): {exc}")
                 return
-            if user is not None:
-                token = create_access_token(user)
-                _set_session(user, token)
-                st.rerun()
-            st.error("Usuário ou senha inválidos.")
+            token = create_access_token(user)
+            _set_session(user, token)
+            st.rerun()
 
 
 def require_login() -> None:

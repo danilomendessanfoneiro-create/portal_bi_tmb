@@ -29,6 +29,21 @@ def get_current_user(
 
 
 def require_admin(user: Annotated[User, Depends(get_current_user)]) -> User:
+    if user.must_change_password:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="É necessário definir uma nova senha antes de continuar.",
+        )
     if not user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso restrito a administradores")
+    return user
+
+
+def require_access_unlocked(user: Annotated[User, Depends(get_current_user)]) -> User:
+    """Block normal API use until provisional password is replaced."""
+    if user.must_change_password:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="É necessário definir uma nova senha antes de continuar.",
+        )
     return user

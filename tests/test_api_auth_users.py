@@ -68,7 +68,9 @@ def test_login_ok(mock_svc_cls, _mock_captcha):
 @patch("app.api.routers.auth.verify_hcaptcha")
 @patch("app.api.routers.auth.AuthService")
 def test_login_fail(mock_svc_cls, _mock_captcha):
-    mock_svc_cls.return_value.authenticate.return_value = None
+    from app.services.auth_service import AuthError
+
+    mock_svc_cls.return_value.authenticate.side_effect = AuthError("Usuário ou senha inválidos")
     r = client.post("/api/auth/login", json={"login": "x", "password": "y", "hcaptcha_token": "ok"})
     assert r.status_code == 401
 

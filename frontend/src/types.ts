@@ -9,6 +9,8 @@ export interface User {
   name?: string | null;
   code?: string | null;
   report_emails?: string | null;
+  login_email?: string | null;
+  must_change_password?: boolean;
   enabled: boolean;
   created_on?: string | null;
   modified_on?: string | null;
@@ -36,7 +38,9 @@ export interface UserFormValues {
   name: string;
   code: string;
   report_emails: string;
+  login_email: string;
   enabled: boolean;
+  send_provisional?: boolean;
 }
 
 export interface SmtpSettings {

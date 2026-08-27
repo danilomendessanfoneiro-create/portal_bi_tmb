@@ -16,6 +16,9 @@ class User:
     name: Optional[str]
     code: Optional[str]
     report_emails: Optional[str] = None
+    login_email: Optional[str] = None
+    must_change_password: bool = False
+    temporary_password_expires_at: Optional[datetime] = None
     created_by: Optional[str] = None
     created_on: Optional[datetime] = None
     modified_by: Optional[str] = None

@@ -14,7 +14,9 @@ class UserCreate:
     name: Optional[str] = None
     code: Optional[str] = None
     report_emails: Optional[str] = None
+    login_email: Optional[str] = None
     enabled: bool = True
+    send_provisional: bool = False
 
 
 @dataclass
@@ -27,6 +29,7 @@ class UserUpdate:
     name: Optional[str] = None
     code: Optional[str] = None
     report_emails: Optional[str] = None
+    login_email: Optional[str] = None
     enabled: Optional[bool] = None
 
 
