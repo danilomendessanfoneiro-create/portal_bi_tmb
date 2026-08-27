@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { clearToken, fetchMe, getToken, login as apiLogin, setToken } from "./api";
 import type { User } from "./types";
 
@@ -21,10 +21,14 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 
+/** Rotas em que ?token= é recuperação de senha, não JWT de sessão. */
+const RECOVERY_TOKEN_PATHS = new Set(["/reset-password"]);
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
 
   const refresh = useCallback(async () => {
@@ -47,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const fromUrl = searchParams.get("token");
-    if (fromUrl) {
+    if (fromUrl && !RECOVERY_TOKEN_PATHS.has(location.pathname)) {
       setToken(fromUrl);
       const next = new URLSearchParams(searchParams);
       next.delete("token");
