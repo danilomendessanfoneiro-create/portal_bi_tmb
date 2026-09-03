@@ -4,7 +4,7 @@ import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../auth";
 import "./LoginPage.css";
 
-const SITEKEY = "";
+const SITEKEY = (import.meta.env.VITE_HCAPTCHA_SITEKEY as string | undefined)?.trim() || "";
 
 export function LoginPage() {
   const { user, loading, login } = useAuth();
@@ -22,9 +22,13 @@ export function LoginPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
+    if (SITEKEY && !captchaToken) {
+      setError("Complete o desafio hCaptcha.");
+      return;
+    }
     setSubmitting(true);
     try {
-      await login(loginName.trim(), password);
+      await login(loginName.trim(), password, captchaToken || undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha no login");
       setCaptchaToken("");
