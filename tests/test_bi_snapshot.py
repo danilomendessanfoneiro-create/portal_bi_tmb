@@ -22,6 +22,7 @@ def test_dataframe_to_overdue_rows_uses_nro_as_remessa():
                 "nota_fiscal": "NF1",
                 "filial": "TMB VIANA",
                 "cliente": "ACME",
+                "cliente_conta": "NINFA",
                 "cidade_entrega": "Vitória",
                 "dias_atraso": 3,
                 "valor_total": 10.5,
@@ -33,6 +34,7 @@ def test_dataframe_to_overdue_rows_uses_nro_as_remessa():
     assert len(rows) == 1
     assert rows[0]["remessa_numero"] == "123"
     assert rows[0]["filial"] == "TMB VIANA"
+    assert rows[0]["cliente_conta"] == "NINFA"
     assert rows[0]["dias_atraso"] == 3
 
 

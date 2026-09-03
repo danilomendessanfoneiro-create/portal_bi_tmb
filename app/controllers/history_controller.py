@@ -12,6 +12,7 @@ import streamlit as st
 from app.controllers.navigation import render_bi_filters_panel, resolve_historico_window
 from app.services.access_scope_service import ViewerContext, AccessScopeService
 from app.services.bi_snapshot_service import BiSnapshotService
+from app.utils.bi_cliente_industria import industria_dim_col
 from app.utils.responsive import (
     CHART_CATEGORY_LIMIT,
     HIST_SERIES_HEIGHT_COMPACT,
@@ -298,7 +299,7 @@ def _render_detalhe_do_dia(
         st.info("Nenhuma entrega em atraso neste dia para os filtros selecionados.")
         return
 
-    dim_col = "filial" if viewer.is_admin else "cliente"
+    dim_col = "filial" if viewer.is_admin else industria_dim_col(df)
     drill = st.session_state.get(HIST_DRILL_KEY)
     if drill and dim_col in df.columns:
         valid = set(df[dim_col].dropna().astype(str).unique())
@@ -432,7 +433,8 @@ def _render_detalhe_do_dia(
         height=min(480, 80 + 35 * min(len(tabela), 12)),
         column_config={
             "nota_fiscal": st.column_config.TextColumn("Nota Fiscal"),
-            "cliente": st.column_config.TextColumn("Cliente"),
+            "cliente_conta": st.column_config.TextColumn("Cliente"),
+            "cliente": st.column_config.TextColumn("Destinatário"),
             "filial": st.column_config.TextColumn("Filial"),
             "cidade_entrega": st.column_config.TextColumn("Cidade"),
             "prazo_considerado": st.column_config.DatetimeColumn("Prazo", format="DD/MM/YYYY"),

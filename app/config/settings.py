@@ -6,10 +6,17 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(ROOT_DIR / ".env")
+_file_env = dotenv_values(ROOT_DIR / ".env")
+for _captcha_key in ("HCAPTCHA_SECRET", "HCAPTCHA_SITEKEY"):
+    _captcha_val = (_file_env.get(_captcha_key) or "").strip()
+    if _captcha_val:
+        os.environ[_captcha_key] = _captcha_val
+    else:
+        os.environ.pop(_captcha_key, None)
 
 
 @dataclass(frozen=True)

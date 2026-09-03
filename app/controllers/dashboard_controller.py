@@ -17,6 +17,10 @@ from app.controllers.navigation import (
     render_bi_filters_panel,
 )
 from app.services.access_scope_service import AccessScopeError, AccessScopeService
+from app.utils.bi_cliente_industria import (
+    apply_cliente_industria_filter,
+    unique_cliente_industria,
+)
 from app.utils.responsive import (
     CHART_CATEGORY_LIMIT,
     CHART_HEIGHT_COMPACT,
@@ -200,11 +204,16 @@ def _sanitize_drills(
 ) -> tuple[str | None, str | None]:
     """Remove drills incompatíveis com o recorte atual (evita KPIs zerados)."""
     if filial_clicada:
-        valores = set(df_base[coluna_grafico1].dropna().astype(str).unique())
-        if str(filial_clicada) not in valores:
+        if coluna_grafico1 not in df_base.columns:
             st.session_state.pop(DRILL_FILIAL_KEY, None)
             st.session_state.pop(CHART_BAR_KEY, None)
             filial_clicada = None
+        else:
+            valores = set(df_base[coluna_grafico1].dropna().astype(str).unique())
+            if str(filial_clicada) not in valores:
+                st.session_state.pop(DRILL_FILIAL_KEY, None)
+                st.session_state.pop(CHART_BAR_KEY, None)
+                filial_clicada = None
 
     if situacao_clicada:
         df_sit = _aplicar_situacao(df_base, situacao_clicada)
@@ -257,7 +266,7 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
         viewer=viewer,
         mode="operacional",
         filiais=sorted(df["filial"].dropna().astype(str).unique()),
-        clientes=sorted(df["cliente"].dropna().astype(str).unique()),
+        clientes=unique_cliente_industria(df),
         cidades=sorted(df["cidade_entrega"].dropna().astype(str).unique()),
         status_opts=sorted(df["status"].dropna().astype(str).unique()) if "status" in df.columns else [],
         periodo_bounds=periodo_bounds,
@@ -273,8 +282,7 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
     if branch_filter:
         df_base = df_base[df_base["filial"].astype(str).str.strip().isin(branch_filter)]
     if filtros.filtro_cliente:
-        clientes = [str(x).strip() for x in filtros.filtro_cliente]
-        df_base = df_base[df_base["cliente"].astype(str).str.strip().isin(clientes)]
+        df_base = apply_cliente_industria_filter(df_base, filtros.filtro_cliente)
     if filtros.filtro_cidade:
         cidades = [str(x).strip() for x in filtros.filtro_cidade]
         df_base = df_base[df_base["cidade_entrega"].astype(str).str.strip().isin(cidades)]
@@ -283,10 +291,13 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
         df_base = df_base[df_base["status"].astype(str).str.strip().isin(statuses)]
     if filtros.busca:
         b = filtros.busca.strip().lower()
-        df_base = df_base[
-            df_base["nota_fiscal"].astype(str).str.lower().str.contains(b, na=False)
-            | df_base["cliente"].astype(str).str.lower().str.contains(b, na=False)
-        ]
+        match_nf = df_base["nota_fiscal"].astype(str).str.lower().str.contains(b, na=False)
+        match_dest = df_base["cliente"].astype(str).str.lower().str.contains(b, na=False)
+        if "cliente_conta" in df_base.columns:
+            match_ind = df_base["cliente_conta"].astype(str).str.lower().str.contains(b, na=False)
+            df_base = df_base[match_nf | match_dest | match_ind]
+        else:
+            df_base = df_base[match_nf | match_dest]
     if filtros.filtro_periodo:
         ini = _as_python_date(filtros.filtro_periodo[0]) if len(filtros.filtro_periodo) >= 1 else None
         fim = (
@@ -299,7 +310,7 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
     # Situação do painel só afeta gráficos/tabela (não zera os cards irmãos)
     df_filtrado = _aplicar_situacao(df_base, filtros.situacao)
 
-    coluna_grafico1 = "filial" if perfil == "admin" else "cliente"
+    coluna_grafico1 = "filial" if perfil == "admin" else "cliente_conta"
     filial_clicada, situacao_clicada = _sanitize_drills(
         df_base,
         coluna_grafico1=coluna_grafico1,
@@ -361,10 +372,10 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
             st.markdown('<div class="section-sub">Clique numa barra para filtrar o dashboard</div>', unsafe_allow_html=True)
             agrupado = (
                 df_barras[df_barras["atrasado"]]
-                .groupby("cliente").size().reset_index(name="atrasadas")
+                .groupby("cliente_conta").size().reset_index(name="atrasadas")
                 .sort_values("atrasadas", ascending=True)
                 .tail(CHART_CATEGORY_LIMIT)
-                .rename(columns={"cliente": "filial"})
+                .rename(columns={"cliente_conta": "filial"})
             )
 
         chart_h = CHART_HEIGHT_DESKTOP
@@ -512,7 +523,7 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
 
         df_tabela = df_tabela_base.sort_values("dias_atraso", ascending=False).copy()
         df_tabela["Situação"] = df_tabela.apply(situacao_label, axis=1)
-        colunas_exibir = ["nota_fiscal", "cliente"]
+        colunas_exibir = ["nota_fiscal", "cliente_conta", "cliente"]
         if perfil == "admin":
             colunas_exibir.append("filial")
         colunas_exibir += ["Situação", "dt_agendamento", "cidade_entrega"]
@@ -528,7 +539,8 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
             height=380,
             column_config={
                 "nota_fiscal": st.column_config.TextColumn("Nota Fiscal"),
-                "cliente": st.column_config.TextColumn("Cliente"),
+                "cliente_conta": st.column_config.TextColumn("Cliente"),
+                "cliente": st.column_config.TextColumn("Destinatário"),
                 "filial": st.column_config.TextColumn("Filial"),
                 "cidade_entrega": st.column_config.TextColumn("Cidade"),
                 "dt_agendamento": st.column_config.DateColumn("Agendamento", format="DD/MM/YYYY"),
@@ -555,7 +567,8 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
             # Layout empilhável (CSS empilha st.columns no ≤1024; 2 cols no desktop)
             r1, r2 = st.columns(2)
             with r1:
-                _field("Cliente (destinatário)", entrega.get("cliente"))
+                _field("Cliente (indústria)", entrega.get("cliente_conta"))
+                _field("Destinatário", entrega.get("cliente"))
                 _field(
                     "Cidade / UF de entrega",
                     f"{entrega.get('cidade_entrega', '-')} / {entrega.get('uf_entrega', '-')}",

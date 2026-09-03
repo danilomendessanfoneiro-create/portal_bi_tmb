@@ -76,12 +76,12 @@ class BiSnapshotRepository:
         sql = """
             INSERT INTO prb_bi_snapshot_overdue (
                 snapshot_run_id, business_date, remessa_numero, nro_entrega, nota_fiscal,
-                filial, cliente, cidade_entrega, uf_entrega, status, motorista, dias_atraso,
+                filial, cliente, cliente_conta, cidade_entrega, uf_entrega, status, motorista, dias_atraso,
                 valor_total, prazo_considerado, status_prazo,
                 created_by, created_on, modified_by, modified_on, enabled
             ) VALUES (
                 %s, %s, %s, %s, %s,
-                %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s, %s,
                 %s, %s, %s,
                 %s, NOW(), %s, NOW(), TRUE
             )
@@ -100,6 +100,7 @@ class BiSnapshotRepository:
                         r.get("nota_fiscal"),
                         r.get("filial"),
                         r.get("cliente"),
+                        r.get("cliente_conta"),
                         r.get("cidade_entrega"),
                         r.get("uf_entrega"),
                         r.get("status"),
@@ -162,7 +163,7 @@ class BiSnapshotRepository:
             where.append("o.filial = ANY(%s)")
             params.append(list(filiais))
         if clientes:
-            where.append("o.cliente = ANY(%s)")
+            where.append("o.cliente_conta = ANY(%s)")
             params.append(list(clientes))
         if cidades:
             where.append("o.cidade_entrega = ANY(%s)")
@@ -172,8 +173,10 @@ class BiSnapshotRepository:
             params.append(list(statuses))
         if busca and busca.strip():
             term = f"%{busca.strip()}%"
-            where.append("(o.nota_fiscal ILIKE %s OR o.cliente ILIKE %s)")
-            params.extend([term, term])
+            where.append(
+                "(o.nota_fiscal ILIKE %s OR o.cliente ILIKE %s OR COALESCE(o.cliente_conta, '') ILIKE %s)"
+            )
+            params.extend([term, term, term])
 
         sql = f"""
             SELECT o.business_date AS business_date, COUNT(*)::int AS overdue_count
@@ -207,7 +210,7 @@ class BiSnapshotRepository:
             where.append("o.filial = ANY(%s)")
             params.append(list(filiais))
         if clientes:
-            where.append("o.cliente = ANY(%s)")
+            where.append("o.cliente_conta = ANY(%s)")
             params.append(list(clientes))
         if cidades:
             where.append("o.cidade_entrega = ANY(%s)")
@@ -217,13 +220,15 @@ class BiSnapshotRepository:
             params.append(list(statuses))
         if busca and busca.strip():
             term = f"%{busca.strip()}%"
-            where.append("(o.nota_fiscal ILIKE %s OR o.cliente ILIKE %s)")
-            params.extend([term, term])
+            where.append(
+                "(o.nota_fiscal ILIKE %s OR o.cliente ILIKE %s OR COALESCE(o.cliente_conta, '') ILIKE %s)"
+            )
+            params.extend([term, term, term])
 
         sql = f"""
             SELECT
                 o.business_date, o.remessa_numero, o.nro_entrega, o.nota_fiscal,
-                o.filial, o.cliente, o.cidade_entrega, o.uf_entrega,
+                o.filial, o.cliente, o.cliente_conta, o.cidade_entrega, o.uf_entrega,
                 o.status, o.motorista, o.dias_atraso, o.valor_total,
                 o.prazo_considerado, o.status_prazo
             FROM prb_bi_snapshot_overdue o
@@ -258,7 +263,7 @@ class BiSnapshotRepository:
                 params,
             ).fetchall()
             cli = conn.execute(
-                f"SELECT DISTINCT cliente FROM prb_bi_snapshot_overdue o WHERE {where_sql} AND cliente IS NOT NULL ORDER BY 1",
+                f"SELECT DISTINCT cliente_conta FROM prb_bi_snapshot_overdue o WHERE {where_sql} AND cliente_conta IS NOT NULL AND BTRIM(cliente_conta) <> '' ORDER BY 1",
                 params,
             ).fetchall()
             cid = conn.execute(
@@ -271,7 +276,7 @@ class BiSnapshotRepository:
             ).fetchall()
         return {
             "filiais": [r["filial"] for r in fil],
-            "clientes": [r["cliente"] for r in cli],
+            "clientes": [r["cliente_conta"] for r in cli],
             "cidades": [r["cidade_entrega"] for r in cid],
             "statuses": [r["status"] for r in stt],
         }

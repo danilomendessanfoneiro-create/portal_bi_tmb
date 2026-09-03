@@ -81,11 +81,11 @@ class ProgressSnapshotRepository:
         sql = """
             INSERT INTO prb_progress_snapshot_item (
                 snapshot_run_id, nro_entrega, remessa_numero, status, status_prazo, filial, cliente,
-                cnpj_cliente, cidade_entrega, uf_entrega, motorista, valor_total,
+                cliente_conta, cnpj_cliente, cidade_entrega, uf_entrega, motorista, valor_total,
                 created_by, created_on, modified_by, modified_on, enabled
             ) VALUES (
                 %s, %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s,
                 %s, NOW(), %s, NOW(), TRUE
             )
             ON CONFLICT (snapshot_run_id, nro_entrega) DO NOTHING
@@ -103,6 +103,7 @@ class ProgressSnapshotRepository:
                         r.get("status_prazo"),
                         r.get("filial"),
                         r.get("cliente"),
+                        r.get("cliente_conta"),
                         r.get("cnpj_cliente"),
                         r.get("cidade_entrega"),
                         r.get("uf_entrega"),
@@ -156,7 +157,7 @@ class ProgressSnapshotRepository:
                 params,
             ).fetchall()
             cli = conn.execute(
-                f"SELECT DISTINCT cliente FROM prb_progress_snapshot_item WHERE {where_sql} AND cliente IS NOT NULL ORDER BY 1",
+                f"SELECT DISTINCT cliente_conta FROM prb_progress_snapshot_item WHERE {where_sql} AND cliente_conta IS NOT NULL AND BTRIM(cliente_conta) <> '' ORDER BY 1",
                 params,
             ).fetchall()
             cid = conn.execute(
@@ -169,7 +170,7 @@ class ProgressSnapshotRepository:
             ).fetchall()
         return {
             "filiais": [r["filial"] for r in fil],
-            "clientes": [r["cliente"] for r in cli],
+            "clientes": [r["cliente_conta"] for r in cli],
             "cidades": [r["cidade_entrega"] for r in cid],
             "statuses": [r["status_prazo"] for r in stt],
         }
@@ -192,7 +193,7 @@ class ProgressSnapshotRepository:
             where.append("i.filial = ANY(%s)")
             params.append(list(filiais))
         if clientes:
-            where.append("i.cliente = ANY(%s)")
+            where.append("i.cliente_conta = ANY(%s)")
             params.append(list(clientes))
         if cidades:
             where.append("i.cidade_entrega = ANY(%s)")
@@ -202,8 +203,10 @@ class ProgressSnapshotRepository:
             params.append(list(statuses))
         if busca and busca.strip():
             term = f"%{busca.strip()}%"
-            where.append("(i.cliente ILIKE %s OR i.nro_entrega ILIKE %s)")
-            params.extend([term, term])
+            where.append(
+                "(i.cliente_conta ILIKE %s OR i.cliente ILIKE %s OR i.nro_entrega ILIKE %s)"
+            )
+            params.extend([term, term, term])
         sql = f"""
             SELECT i.snapshot_run_id, i.status_prazo, COUNT(*)::int AS qty
             FROM prb_progress_snapshot_item i
@@ -234,7 +237,7 @@ class ProgressSnapshotRepository:
             where.append("i.filial = ANY(%s)")
             params.append(list(filiais))
         if clientes:
-            where.append("i.cliente = ANY(%s)")
+            where.append("i.cliente_conta = ANY(%s)")
             params.append(list(clientes))
         if cidades:
             where.append("i.cidade_entrega = ANY(%s)")
@@ -244,8 +247,10 @@ class ProgressSnapshotRepository:
             params.append(list(statuses))
         if busca and busca.strip():
             term = f"%{busca.strip()}%"
-            where.append("(i.cliente ILIKE %s OR i.nro_entrega ILIKE %s)")
-            params.extend([term, term])
+            where.append(
+                "(i.cliente_conta ILIKE %s OR i.cliente ILIKE %s OR i.nro_entrega ILIKE %s)"
+            )
+            params.extend([term, term, term])
         sql = f"""
             SELECT COUNT(DISTINCT i.nro_entrega)::int AS qty
             FROM prb_progress_snapshot_item i
@@ -273,7 +278,7 @@ class ProgressSnapshotRepository:
             where_prev.append("p.filial = ANY(%s)")
             params.append(list(filiais))
         if clientes:
-            where_prev.append("p.cliente = ANY(%s)")
+            where_prev.append("p.cliente_conta = ANY(%s)")
             params.append(list(clientes))
         if cidades:
             where_prev.append("p.cidade_entrega = ANY(%s)")
@@ -283,8 +288,10 @@ class ProgressSnapshotRepository:
             params.append(list(statuses))
         if busca and busca.strip():
             term = f"%{busca.strip()}%"
-            where_prev.append("(p.cliente ILIKE %s OR p.nro_entrega ILIKE %s)")
-            params.extend([term, term])
+            where_prev.append(
+                "(p.cliente_conta ILIKE %s OR p.cliente ILIKE %s OR p.nro_entrega ILIKE %s)"
+            )
+            params.extend([term, term, term])
         sql = f"""
             SELECT COUNT(*)::int AS qty
             FROM prb_progress_snapshot_item p
@@ -308,7 +315,7 @@ class ProgressSnapshotRepository:
             params.append(list(statuses))
         if busca and busca.strip():
             term = f"%{busca.strip()}%"
-            params.extend([term, term])
+            params.extend([term, term, term])
         params.append(curr_run_id)
         with get_connection() as conn:
             row = conn.execute(sql, params).fetchone()

@@ -64,6 +64,7 @@ def test_rows_to_progress_items_status_prazo_fallback_and_dedupe():
             "status_prazo": STATUS_PRAZO_ATRASO,
             "filial": "SPO",
             "cliente": "ACME",
+            "cliente_conta": "NINFA",
             "cnpj_cliente": "12.345.678/0001-90",
             "valor_total": 10.5,
         },
@@ -87,6 +88,7 @@ def test_rows_to_progress_items_status_prazo_fallback_and_dedupe():
     assert by_nro["100"]["status"] == "EM ROTA"
     assert by_nro["100"]["status_prazo"] == STATUS_PRAZO_ATRASO
     assert by_nro["100"]["cnpj_cliente"] == "12345678000190"
+    assert by_nro["100"]["cliente_conta"] == "NINFA"
     assert by_nro["200"]["status_prazo"] == STATUS_PRAZO_SEM
 
 

@@ -135,6 +135,7 @@ def rows_to_progress_items(rows: list[dict[str, Any]] | pd.DataFrame) -> list[di
                 "status_prazo": status_prazo,
                 "filial": _as_str(row.get("filial")),
                 "cliente": _as_str(row.get("cliente")),
+                "cliente_conta": _as_str(row.get("cliente_conta")),
                 "cnpj_cliente": _normalize_cnpj(cnpj),
                 "cidade_entrega": _as_str(row.get("cidade_entrega")),
                 "uf_entrega": _as_str(row.get("uf_entrega")),

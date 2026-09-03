@@ -89,7 +89,7 @@ def _render_common_fields(
     status_opts: Optional[list[Any]] = None,
 ) -> None:
     st.text_input(
-        "Buscar por NF ou cliente",
+        "Buscar por NF, cliente indústria ou destinatário",
         placeholder="Ex: 509656 ou Stella Doro",
         key=_k(mode, "busca"),
     )

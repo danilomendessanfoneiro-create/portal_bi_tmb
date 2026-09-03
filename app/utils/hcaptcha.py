@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Optional
 
 import httpx
@@ -19,7 +20,12 @@ class HCaptchaError(Exception):
 
 
 def hcaptcha_enabled() -> bool:
-    return bool((settings.hcaptcha_secret or "").strip())
+    flag = (os.getenv("HCAPTCHA_ENABLED") or "").strip().lower()
+    if flag in {"0", "false", "no", "off"}:
+        return False
+    secret = (os.getenv("HCAPTCHA_SECRET") or "").strip()
+    sitekey = (os.getenv("HCAPTCHA_SITEKEY") or "").strip()
+    return bool(secret and sitekey)
 
 
 def verify_hcaptcha(token: Optional[str], *, remote_ip: Optional[str] = None) -> None:

@@ -18,6 +18,7 @@ CHART_CATEGORY_LIMIT = 12
 # Colunas prioritárias em tabelas mobile (ordem)
 OPERACIONAL_TABLE_COLS_PRIORITY = [
     "nota_fiscal",
+    "cliente_conta",
     "cliente",
     "filial",
     "Situação",
@@ -26,6 +27,7 @@ OPERACIONAL_TABLE_COLS_PRIORITY = [
 ]
 HISTORICO_TABLE_COLS_PRIORITY = [
     "nota_fiscal",
+    "cliente_conta",
     "cliente",
     "filial",
     "dias_atraso",
