@@ -372,6 +372,13 @@ export function biEmbedUrl(): string {
   return `${base}/?${params.toString()}`;
 }
 
+export type ImportAutoBranch = {
+  branch: string;
+  login: string;
+  user_id?: number | null;
+  created_on?: string | null;
+};
+
 export type ImportBatch = {
   id: number;
   file_name: string;
@@ -395,6 +402,7 @@ export type ImportBatch = {
   report_job_message?: string | null;
   created_by?: string | null;
   created_on?: string | null;
+  auto_created_branches?: ImportAutoBranch[];
 };
 
 export type ActiveDataset = {

@@ -63,6 +63,7 @@ export function ImportPage() {
   const [dispatching, setDispatching] = useState(false);
   const [dispatchMsg, setDispatchMsg] = useState("");
   const [activeDataset, setActiveDataset] = useState<ActiveDataset | null>(null);
+  const [infoBatch, setInfoBatch] = useState<ImportBatch | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<number | null>(null);
 
@@ -481,13 +482,16 @@ export function ImportPage() {
                 <th>Tempo</th>
                 <th>Status</th>
                 <th>Lote</th>
+                <th title="Informação" aria-label="Informação" style={{ width: "2.5rem", textAlign: "center" }}>
+                  <span aria-hidden="true">ℹ</span>
+                </th>
                 <th>Ações</th>
               </tr>
             </thead>
             <tbody>
               {history.length === 0 ? (
                 <tr>
-                  <td colSpan={11}>Nenhuma importação registrada.</td>
+                  <td colSpan={12}>Nenhuma importação registrada.</td>
                 </tr>
               ) : (
                 history.map((h) => (
@@ -509,6 +513,20 @@ export function ImportPage() {
                         "—"
                       )}
                     </td>
+                    <td style={{ textAlign: "center" }}>
+                      {(h.auto_created_branches?.length || 0) > 0 ? (
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          title="Filiais criadas automaticamente"
+                          aria-label="Informação sobre filiais criadas automaticamente"
+                          style={{ fontSize: "1rem", padding: "0.2rem 0.45rem", lineHeight: 1 }}
+                          onClick={() => setInfoBatch(h)}
+                        >
+                          ℹ
+                        </button>
+                      ) : null}
+                    </td>
                     <td>
                       {(h.status === "validated_error" || h.status === "failed") && (
                         <button
@@ -529,6 +547,49 @@ export function ImportPage() {
         </div>
         <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>{histTotal} registro(s)</p>
       </div>
+
+      {infoBatch && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setInfoBatch(null)}>
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="auto-branch-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="auto-branch-title">
+              {(infoBatch.auto_created_branches?.length || 0) > 1
+                ? `${infoBatch.auto_created_branches!.length} filiais foram criadas automaticamente`
+                : "Filial criada automaticamente"}
+            </h2>
+            <p>
+              Durante o processamento da importação, foi identificada filial que ainda não estava
+              cadastrada. O cadastro foi feito automaticamente com os dados da planilha e{" "}
+              <strong>não representa erro</strong> na importação.
+            </p>
+            <p>
+              <strong>Lote:</strong> {infoBatch.id}
+            </p>
+            <ul>
+              {(infoBatch.auto_created_branches || []).map((b) => (
+                <li key={`${b.branch}-${b.login}`}>
+                  <strong>{b.branch}</strong>
+                  {b.login ? ` · login ${b.login}` : ""}
+                  {b.user_id != null ? ` · id ${b.user_id}` : ""}
+                  {b.created_on
+                    ? ` · ${new Date(b.created_on).toLocaleString("pt-BR")}`
+                    : ""}
+                </li>
+              ))}
+            </ul>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-primary" onClick={() => setInfoBatch(null)}>
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

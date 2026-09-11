@@ -10,16 +10,31 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from app.api.deps import require_admin
 from app.api.schemas import (
     ActiveDatasetOut,
+    ImportAutoBranchOut,
     ImportBatchListResponse,
     ImportBatchOut,
     ImportErrorOut,
     MessageOut,
 )
 from app.models import User
+from app.repositories.import_repository import ImportRepository
 from app.services.active_dataset_service import ActiveDatasetService
 from app.services.manual_import_service import ManualImportError, ManualImportService
 
 router = APIRouter(prefix="/imports", tags=["imports"])
+
+
+def _auto_branches_out(batch_id: int) -> list[ImportAutoBranchOut]:
+    rows = ImportRepository().list_auto_branches(batch_id)
+    return [
+        ImportAutoBranchOut(
+            branch=str(r["branch"]),
+            login=str(r["login"]),
+            user_id=int(r["user_id"]) if r.get("user_id") is not None else None,
+            created_on=r.get("created_on"),
+        )
+        for r in rows
+    ]
 
 
 def _to_out(row: dict[str, Any]) -> ImportBatchOut:
@@ -31,8 +46,9 @@ def _to_out(row: dict[str, Any]) -> ImportBatchOut:
         pct_f = float(pct)
     except (TypeError, ValueError):
         pct_f = 0.0
+    batch_id = int(row["id"])
     return ImportBatchOut(
-        id=int(row["id"]),
+        id=batch_id,
         file_name=row["file_name"],
         file_ext=row["file_ext"],
         file_size_bytes=int(row["file_size_bytes"]),
@@ -54,6 +70,7 @@ def _to_out(row: dict[str, Any]) -> ImportBatchOut:
         report_job_message=row.get("report_job_message"),
         created_by=row.get("created_by"),
         created_on=row.get("created_on"),
+        auto_created_branches=_auto_branches_out(batch_id),
     )
 
 

@@ -290,6 +290,13 @@ class ApiSettingsListResponse(BaseModel):
     page_size: int
 
 
+class ImportAutoBranchOut(BaseModel):
+    branch: str
+    login: str
+    user_id: Optional[int] = None
+    created_on: Optional[datetime] = None
+
+
 class ImportBatchOut(BaseModel):
     id: int
     file_name: str
@@ -313,6 +320,7 @@ class ImportBatchOut(BaseModel):
     report_job_message: Optional[str] = None
     created_by: Optional[str] = None
     created_on: Optional[datetime] = None
+    auto_created_branches: list[ImportAutoBranchOut] = []
 
 
 class ImportBatchListResponse(BaseModel):

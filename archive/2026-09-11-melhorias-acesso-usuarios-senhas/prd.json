@@ -1,0 +1,235 @@
+{
+  "project": "Portal BI TMB",
+  "branchName": "develop",
+  "description": "Melhorias de acesso: e-mail de login, senhas (admin/self), recuperação por link (30min), senha provisória 24h, novo usuário com perfis admin/filial existentes (sem perfil Gestão de Entregas). SMTP padrão operacional. Sem commit/push.",
+  "targetRepo": null,
+  "sourcePrd": "tasks/prd-melhorias-acesso-usuarios-senhas.md",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Schema — e-mail de login e flags de senha",
+      "description": "As a developer, I need columns for login email and provisional-password state so credentials flows persist securely.",
+      "acceptanceCriteria": [
+        "Migration adds unique (case-insensitive) login email field on users table (nullable allowed initially if needed for legacy rows)",
+        "Migration adds must_change_password (bool, default false) and temporary_password_expires_at (timestamptz, nullable)",
+        "Follow existing prb_* / migration naming conventions",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Migration 044 aplicada; User + repository mapeiam login_email, must_change_password, temporary_password_expires_at; testes OK"
+    },
+    {
+      "id": "US-002",
+      "title": "Schema — tokens de recuperação de senha",
+      "description": "As a developer, I need a password-recovery table storing only token hashes with expiry and single-use status.",
+      "acceptanceCriteria": [
+        "Table created (project naming) with user_id, token_hash, created_at, expires_at, used_at, revoked_at, status",
+        "Status supports Pending / Used / Expired / Revoked (or equivalent)",
+        "Index/lookup suitable for validating an active token",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Migration 045 prb_password_recovery com status Pending/Used/Expired/Revoked e índice active"
+    },
+    {
+      "id": "US-003",
+      "title": "Serviço — validação e persistência de e-mail de login",
+      "description": "As an admin API, I want login email create/update with format, trim, case-insensitive uniqueness.",
+      "acceptanceCriteria": [
+        "User create/update accepts login email with trim + format validation",
+        "Duplicate emails rejected with clear API error",
+        "Non-admin cannot change another user's login email (backend enforced)",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "login_email em schemas/API/service/repo; validação trim/case/unique; testes OK"
+    },
+    {
+      "id": "US-004",
+      "title": "UI Admin — campo E-mail de Login",
+      "description": "As an administrator, I want to view/edit login email on the users management screen.",
+      "acceptanceCriteria": [
+        "Login email field on user create and edit (Admin React and/or current users UI)",
+        "Validation errors shown to the user",
+        "Persistence round-trip works after save",
+        "Typecheck passes",
+        "Verify in browser"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "Campo E-mail de Login no UserModal + coluna na lista; API create/update; tsc+vite build OK; browser não verificado neste ambiente"
+    },
+    {
+      "id": "US-005",
+      "title": "Utilitário — geração de senha segura",
+      "description": "As the system, I want cryptographically secure password generation meeting policy (upper, lower, digit, special, min length).",
+      "acceptanceCriteria": [
+        "Shared helper generates passwords without using user name/email/predictable data",
+        "Meets documented complexity rules used by the app",
+        "Unit tests cover charset/length requirements",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "generate_secure_password + validate_password_policy (min 12, upper/lower/digit/special); testes OK"
+    },
+    {
+      "id": "US-006",
+      "title": "Admin — alterar senha de usuário",
+      "description": "As an administrator, I want to set or auto-generate a new password for a user.",
+      "acceptanceCriteria": [
+        "Backend endpoint/action requires admin; stores hash only via existing hasher",
+        "UI action Alterar senha with manual entry and gerar senha segura",
+        "Password never logged or returned in plain text after save",
+        "Typecheck passes",
+        "Verify in browser"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "POST /users/{id}/password + ChangePasswordModal; generate retorna senha uma vez; build OK"
+    },
+    {
+      "id": "US-007",
+      "title": "Usuário — alterar própria senha",
+      "description": "As an authenticated user, I want to change my password using current + new + confirm.",
+      "acceptanceCriteria": [
+        "Flow under account/settings: current, new, confirm",
+        "Validates current password and policy; cannot change another user's password",
+        "Updates hash on success",
+        "Typecheck passes",
+        "Verify in browser"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "POST /auth/change-password + página Minha conta; testes e build OK"
+    },
+    {
+      "id": "US-008",
+      "title": "Recuperação — solicitar reset (anti-enumeração)",
+      "description": "As a user, I want to request password recovery from login without revealing whether the email exists.",
+      "acceptanceCriteria": [
+        "Login UI has Esqueci minha senha requesting email",
+        "Same success message whether email exists or not",
+        "When email exists: create recovery record, hash token, expiry 30 minutes, revoke prior pending tokens for that user",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "POST /auth/forgot-password + ForgotPasswordPage; token hash 30min; mensagem genérica; testes OK"
+    },
+    {
+      "id": "US-009",
+      "title": "Recuperação — e-mail com link (SMTP padrão)",
+      "description": "As a user, I want a recovery email with a secure link via the operational default SMTP.",
+      "acceptanceCriteria": [
+        "Email sent using default prb_smtp_settings (not TECH_SMTP)",
+        "Body includes system id, guidance, link with token only, 30-minute expiry notice; no current password",
+        "Link path follows app routing (reset-password?token=...)",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": "E-mail recuperação via SMTP padrão (outbound_mail); link ADMIN_PUBLIC_URL/reset-password?token=; testes OK"
+    },
+    {
+      "id": "US-010",
+      "title": "Recuperação — tela de nova senha por token",
+      "description": "As a user with a valid link, I want to set a new password and invalidate the token.",
+      "acceptanceCriteria": [
+        "Page validates token (hash, user, expiry, unused/not revoked)",
+        "Expired/invalid shows friendly message and blocks change",
+        "On success: update hash, mark token used, redirect to login",
+        "Typecheck passes",
+        "Verify in browser"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": "GET/POST /auth/reset-password + ResetPasswordPage; token expirado/ inválido; testes+build OK"
+    },
+    {
+      "id": "US-011",
+      "title": "Admin — enviar senha provisória (24h)",
+      "description": "As an administrator, I want to email a provisional password so the user can first-access the system.",
+      "acceptanceCriteria": [
+        "Action Enviar senha provisória with confirmation; requires login email present",
+        "Generates secure password, stores hash, sets must_change_password=true, temporary_password_expires_at=now+24h",
+        "Email via default SMTP includes provisional password, access link, first-access guidance",
+        "Re-send invalidates previous provisional window (new hash + new expiry)",
+        "Typecheck passes",
+        "Verify in browser"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": "POST /users/{id}/provisional-password; e-mail SMTP padrão; must_change + expires 24h; UI botão"
+    },
+    {
+      "id": "US-012",
+      "title": "Login — gate must_change_password e expiração 24h",
+      "description": "As the system, I want provisional logins forced into password change and expired provisionals rejected.",
+      "acceptanceCriteria": [
+        "Login with expired provisional password fails with clear message",
+        "Successful provisional login sets session but blocks normal features until password change (only change-password + logout)",
+        "Backend enforces the gate (not UI-only)",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": "AuthError expiração; require_admin bloqueia must_change; redirect /force-change-password"
+    },
+    {
+      "id": "US-013",
+      "title": "Primeiro acesso — definir senha definitiva",
+      "description": "As a user on provisional password, I want to set a definitive password and continue authenticated.",
+      "acceptanceCriteria": [
+        "Mandatory screen: new + confirm; must differ from provisional; meets policy",
+        "On save: update hash, must_change_password=false, clear temporary expiry, audit",
+        "User remains authenticated when session model allows; redirect to home",
+        "Typecheck passes",
+        "Verify in browser"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": "ForceChangePasswordPage + changeOwnPassword; refresh mantém sessão e libera PrivateShell"
+    },
+    {
+      "id": "US-014",
+      "title": "Admin — criar novo usuário (sem perfil Gestão de Entregas)",
+      "description": "As an administrator, I want to create a new user with existing profiles only (admin/filial), including login email and optional provisional password send.",
+      "acceptanceCriteria": [
+        "Create-user flow supports login email and existing profiles only — no new Gestão de Entregas profile/role",
+        "Filial profile still requires branch; admin profile follows current rules",
+        "Optional send provisional password after create when email present",
+        "Typecheck passes",
+        "Verify in browser"
+      ],
+      "priority": 14,
+      "passes": true,
+      "notes": "Create só admin/filial; checkbox send_provisional no UserModal; API send_provisional"
+    },
+    {
+      "id": "US-015",
+      "title": "Auditoria e hardening de autorização",
+      "description": "As security, I want admin password/email/provisional operations audited and backend-authorized without logging secrets.",
+      "acceptanceCriteria": [
+        "Audit covers admin password change, recovery request, provisional send, self password change, first-access completion",
+        "Never audit plaintext password or raw token",
+        "Admin-only operations return 403 for non-admin on API",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": true,
+      "notes": "access_audit logger; require_admin 403; sem senha/token em logs"
+    }
+  ]
+}

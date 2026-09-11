@@ -56,16 +56,18 @@ Cada importação marca as linhas upsertadas com o `batch_id`. Ver [paridade-lot
 - Sem escrita em `prb_deliveries` até confirmação
 - Estrutura: colunas obrigatórias (`Nro. Entrega`, `Sigla Unidade Entrega`, `Nome Pessoa Visita`) e cabeçalhos duplicados bloqueiam o upload
 - Colunas extras do export operacional (fora de `COLUNAS_UTEIS`) são ignoradas — o layout real tem ~80+ campos
-- Filial obrigatória e existente em `prb_users` (`profile=filial`, `enabled`)
-- Erro de filial sugere cadastro em **Administração → Usuários**
+- Filial obrigatória: se a sigla **não** existir em `prb_users` (`profile=filial`, `enabled`), o sistema **cadastra automaticamente** um usuário filial com dados básicos (login/slug, `branch` exata da planilha, senha padrão do seed) e **não trata a ausência como erro**
+- Cada filial auto-criada no lote é registrada em `prb_import_auto_branches` (auditoria) e aparece no grid (coluna **Informação** + modal)
+- Falha ao criar a filial (ex.: conflito irrecuperável de login) **ainda bloqueia** a validação como erro
 - Duplicidade de `nro_entrega` na planilha, datas/valores inválidos, obrigatórios vazios
-- Política **all-or-nothing**: qualquer erro bloqueia a importação
+- Política **all-or-nothing**: qualquer erro (exceto a mera inexistência de filial, já auto-tratada) bloqueia a importação
 
 ## Importação
 
 - Upsert por `remessa_numero` (mesmo contrato da API/CSV)
 - Source: `manual_upload`
 - Transação única no lote; falha ⇒ rollback das entregas do lote
+- O job `fetch_tmselite_spreadsheet` usa o mesmo `ManualImportService.validate` — mesma regra de auto-cadastro
 
 ## Relatórios / e-mails
 

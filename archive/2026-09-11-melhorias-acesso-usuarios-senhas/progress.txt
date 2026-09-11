@@ -1,0 +1,53 @@
+# Atlas progress — melhorias-acesso-usuarios-senhas
+# Source: tasks/prd-melhorias-acesso-usuarios-senhas.md
+# Branch de trabalho: develop (sem commits/push, conforme PRD)
+
+## [US-001] Schema — e-mail de login e flags de senha — DONE
+- Migration 044: login_email (unique lower), must_change_password, temporary_password_expires_at + audit
+- Model/repository atualizados; testes schema OK; migration aplicada no Postgres local
+
+## [US-002] Schema — tokens de recuperação de senha — DONE
+- Migration 045: prb_password_recovery (token_hash, status, expires_at, índice active)
+
+## [US-003] Serviço — validação e persistência de e-mail de login — DONE
+- validate_login_email; create/update com unicidade; API UserOut/Create/Update com login_email
+
+## [US-004] UI Admin — campo E-mail de Login — DONE
+- UserModal + UsersPage + api/types; frontend build OK
+
+## [US-005] Utilitário — geração de senha segura — DONE
+- generate_secure_password / validate_password_policy em app/utils/password.py; testes OK
+
+## [US-006] Admin — alterar senha de usuário — DONE
+- POST /api/users/{id}/password; ChangePasswordModal; senha gerada exibida uma vez
+
+## [US-007] Usuário — alterar própria senha — DONE
+- POST /auth/change-password; AccountPage /account; nav Minha conta
+
+## [US-008] Recuperação — solicitar reset (anti-enumeração) — DONE
+- PasswordRecoveryService + POST /auth/forgot-password; UI Esqueci minha senha; token hasheado 30min
+
+## [US-009] Recuperação — e-mail com link (SMTP padrão) — DONE
+- send via resolve_default_smtp; corpo com link 30min; sem senha atual
+
+## [US-010] Recuperação — tela de nova senha por token — DONE
+- validate/reset token; ResetPasswordPage; redirect login
+
+## [US-011] Admin — enviar senha provisória (24h) — DONE
+- send_provisional_password + e-mail; botão na lista de usuários
+
+## [US-012] Login — gate must_change_password e expiração 24h — DONE
+- AuthError se provisória expirada; APIs admin bloqueadas; redirect force-change
+
+## [US-013] Primeiro acesso — definir senha definitiva — DONE
+- ForceChangePasswordPage; change-password; refresh e acesso normal
+
+## [US-014] Admin — criar novo usuário (sem perfil Gestão de Entregas) — DONE
+- Perfis só admin/filial; send_provisional no create
+
+## [US-015] Auditoria e hardening de autorização — DONE
+- access_audit; require_admin; sem secrets nos logs
+
+## COMPLETE — 2026-08-27
+- sourcePrd: tasks/prd-melhorias-acesso-usuarios-senhas.md
+- branch: develop (sem commit/push)

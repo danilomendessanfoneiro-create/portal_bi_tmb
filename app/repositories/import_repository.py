@@ -257,3 +257,51 @@ class ImportRepository:
                 [actor, batch_id],
             ).fetchone()
         return dict(row) if row else None
+
+    def clear_auto_branches(self, batch_id: int) -> None:
+        with get_connection() as conn:
+            conn.execute(
+                "DELETE FROM prb_import_auto_branches WHERE batch_id = %s",
+                [batch_id],
+            )
+
+    def insert_auto_branch(
+        self,
+        *,
+        batch_id: int,
+        branch: str,
+        login: str,
+        user_id: Optional[int],
+        actor: str,
+    ) -> dict[str, Any]:
+        sql = """
+            INSERT INTO prb_import_auto_branches (
+                batch_id, user_id, branch, login, created_by, created_on
+            ) VALUES (
+                %s, %s, %s, %s, %s, NOW()
+            )
+            ON CONFLICT (batch_id, branch) DO UPDATE
+            SET user_id = EXCLUDED.user_id,
+                login = EXCLUDED.login,
+                created_by = EXCLUDED.created_by
+            RETURNING *
+        """
+        with get_connection() as conn:
+            row = conn.execute(
+                sql,
+                [batch_id, user_id, branch.strip(), login.strip(), actor],
+            ).fetchone()
+        return dict(row)
+
+    def list_auto_branches(self, batch_id: int) -> list[dict[str, Any]]:
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, batch_id, user_id, branch, login, created_by, created_on
+                FROM prb_import_auto_branches
+                WHERE batch_id = %s
+                ORDER BY id
+                """,
+                [batch_id],
+            ).fetchall()
+        return [dict(r) for r in rows]

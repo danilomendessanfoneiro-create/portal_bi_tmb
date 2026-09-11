@@ -175,6 +175,34 @@ class ManualImportService:
         known_branches = self._branches.list_enabled_filial_branches()
         errors: list[dict[str, Any]] = []
         seen_keys: dict[str, int] = {}
+        ensure_cache: dict[str, Any] = {}
+        self._imports.clear_auto_branches(batch_id)
+
+        # Pré-cadastro: uma tentativa por sigla distinta do lote
+        distinct_filiais = sorted(
+            {
+                (item.get("filial") or "").strip()
+                for item in items
+                if (item.get("filial") or "").strip()
+            }
+        )
+        for filial in distinct_filiais:
+            if self._branches.is_known_branch(filial, known_branches):
+                continue
+            try:
+                result = self._branches.ensure_filial_user(filial, actor=actor)
+                ensure_cache[filial] = result
+                known_branches.add(filial)
+                if result.created:
+                    self._imports.insert_auto_branch(
+                        batch_id=batch_id,
+                        branch=result.branch,
+                        login=result.login,
+                        user_id=result.user_id,
+                        actor=actor,
+                    )
+            except Exception as exc:
+                ensure_cache[filial] = exc
 
         # Structure: required columns present in staging payloads / mapped fields
         if not items:
@@ -199,9 +227,15 @@ class ManualImportService:
             if not filial:
                 row_errors.append("Filial não informada.")
             elif not self._branches.is_known_branch(filial, known_branches):
-                row_errors.append(
-                    f"Código da Filial inexistente ({filial}). {BranchCatalogService.SUGGEST_MESSAGE}"
-                )
+                cached = ensure_cache.get(filial)
+                if isinstance(cached, Exception):
+                    row_errors.append(
+                        f"Falha ao cadastrar automaticamente a filial ({filial}): {cached}"
+                    )
+                else:
+                    row_errors.append(
+                        f"Código da Filial inexistente ({filial}). {BranchCatalogService.SUGGEST_MESSAGE}"
+                    )
 
             cliente = item.get("cliente")
             if cliente is None or str(cliente).strip() == "":
