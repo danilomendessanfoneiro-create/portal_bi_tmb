@@ -265,6 +265,7 @@ def render_historico(
         cidades=filtros.filtro_cidade or None,
         busca=filtros.busca or None,
         statuses=filtros.filtro_status or None,
+        top_n=filtros.top_n,
     )
 
 
@@ -278,6 +279,7 @@ def _render_detalhe_do_dia(
     cidades: Optional[list[str]],
     busca: Optional[str],
     statuses: Optional[list[str]] = None,
+    top_n: int = CHART_CATEGORY_LIMIT,
 ) -> None:
     st.markdown("---")
     st.markdown(f"### Detalhe do dia {_fmt_br(business_date)}")
@@ -353,8 +355,10 @@ def _render_detalhe_do_dia(
         agrupado = (
             df.groupby(dim_col).size().reset_index(name="atrasadas").sort_values("atrasadas")
         )
-        if len(agrupado) > CHART_CATEGORY_LIMIT:
-            agrupado = limit_chart_categories(agrupado, y_col=dim_col, value_col="atrasadas")
+        if len(agrupado) > top_n:
+            agrupado = limit_chart_categories(
+                agrupado, y_col=dim_col, value_col="atrasadas", limit=top_n
+            )
         fig_b = go.Figure(
             go.Bar(
                 x=agrupado["atrasadas"],
@@ -372,7 +376,7 @@ def _render_detalhe_do_dia(
         )
         fig_b.update_layout(
             margin=dict(l=0, r=20, t=10, b=10),
-            height=min(420, max(260, 40 + 28 * len(agrupado))),
+            height=max(260, 40 + 28 * len(agrupado)),
             plot_bgcolor="rgba(0,0,0,0)",
             paper_bgcolor="rgba(0,0,0,0)",
             showlegend=False,

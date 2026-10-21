@@ -12,8 +12,12 @@ CHART_HEIGHT_COMPACT = 260
 HIST_SERIES_HEIGHT_DESKTOP = 420
 HIST_SERIES_HEIGHT_COMPACT = 280
 
-# Limite de categorias no gráfico de barras (excesso via filtros/tabela)
+# Limite de categorias no gráfico de barras (excesso via filtros/tabela).
+# O valor efetivo é escolhido pelo usuário no filtro (ver CHART_TOPN_OPTIONS);
+# CHART_CATEGORY_LIMIT permanece como fallback/padrão de limit_chart_categories.
 CHART_CATEGORY_LIMIT = 12
+CHART_TOPN_OPTIONS = [10, 15, 20, 25, 50, 100]
+CHART_TOPN_DEFAULT = 20
 
 # Colunas prioritárias em tabelas mobile (ordem)
 OPERACIONAL_TABLE_COLS_PRIORITY = [

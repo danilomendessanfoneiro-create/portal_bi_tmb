@@ -9,6 +9,7 @@ from typing import Any, Literal, Optional
 import streamlit as st
 
 from app.services.access_scope_service import ViewerContext
+from app.utils.responsive import CHART_TOPN_DEFAULT, CHART_TOPN_OPTIONS
 
 BiFilterMode = Literal["operacional", "historico", "progressao"]
 
@@ -41,6 +42,8 @@ class BiDashboardFilters:
     filtro_periodo: Optional[tuple] = None
     date_from: Optional[date] = None
     date_to: Optional[date] = None
+    # Quantas categorias (filiais/clientes) exibir no gráfico de barras
+    top_n: int = CHART_TOPN_DEFAULT
 
 
 SidebarFilters = BiDashboardFilters
@@ -122,6 +125,25 @@ def _render_common_fields(
                 "Vazio = todos os STATUS PRAZO do período."
                 if mode == "progressao"
                 else "Vazio = comportamento padrão (sem filtrar por texto de status)."
+            ),
+        )
+
+    if mode in ("operacional", "historico"):
+        key_topn = _k(mode, "topn")
+        if key_topn not in st.session_state:
+            st.session_state[key_topn] = CHART_TOPN_DEFAULT
+        label_topn = (
+            "Número de filiais exibidas"
+            if viewer.is_admin
+            else "Número de clientes exibidos"
+        )
+        st.selectbox(
+            label_topn,
+            CHART_TOPN_OPTIONS,
+            key=key_topn,
+            help=(
+                "Quantas categorias exibir no gráfico de barras. "
+                "As demais continuam acessíveis pela tabela e pelos filtros."
             ),
         )
 
@@ -286,6 +308,13 @@ def _collect_filters(
     elif mode == "progressao" and hoje is not None:
         date_from, date_to = resolve_progressao_window(hoje)
 
+    top_n = CHART_TOPN_DEFAULT
+    if mode in ("operacional", "historico"):
+        try:
+            top_n = int(st.session_state.get(_k(mode, "topn"), CHART_TOPN_DEFAULT))
+        except (TypeError, ValueError):
+            top_n = CHART_TOPN_DEFAULT
+
     return BiDashboardFilters(
         busca=busca,
         filtro_filial=filtro_filial,
@@ -296,6 +325,7 @@ def _collect_filters(
         filtro_periodo=filtro_periodo,
         date_from=date_from,
         date_to=date_to,
+        top_n=top_n,
     )
 
 

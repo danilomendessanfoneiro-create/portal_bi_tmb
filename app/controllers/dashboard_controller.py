@@ -22,7 +22,6 @@ from app.utils.bi_cliente_industria import (
     unique_cliente_industria,
 )
 from app.utils.responsive import (
-    CHART_CATEGORY_LIMIT,
     CHART_HEIGHT_COMPACT,
     CHART_HEIGHT_DESKTOP,
     OPERACIONAL_TABLE_COLS_PRIORITY,
@@ -361,12 +360,14 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
                 .groupby("filial").size().reset_index(name="atrasadas")
                 .sort_values("atrasadas", ascending=True)
             )
-            if len(agrupado) > CHART_CATEGORY_LIMIT:
+            if len(agrupado) > filtros.top_n:
                 st.caption(
-                    f"Exibindo as {CHART_CATEGORY_LIMIT} filiais com mais atrasos "
+                    f"Exibindo as {filtros.top_n} filiais com mais atrasos "
                     "(use filtros ou a tabela para o restante)."
                 )
-                agrupado = limit_chart_categories(agrupado, y_col="filial", value_col="atrasadas")
+                agrupado = limit_chart_categories(
+                    agrupado, y_col="filial", value_col="atrasadas", limit=filtros.top_n
+                )
         else:
             st.markdown('<div class="section-title">Entregas em aberto por cliente</div>', unsafe_allow_html=True)
             st.markdown('<div class="section-sub">Clique numa barra para filtrar o dashboard</div>', unsafe_allow_html=True)
@@ -374,7 +375,7 @@ def _render_operacional(*, viewer, scope, perfil, filial_usuario, hoje) -> None:
                 df_barras[df_barras["atrasado"]]
                 .groupby("cliente_conta").size().reset_index(name="atrasadas")
                 .sort_values("atrasadas", ascending=True)
-                .tail(CHART_CATEGORY_LIMIT)
+                .tail(filtros.top_n)
                 .rename(columns={"cliente_conta": "filial"})
             )
 
